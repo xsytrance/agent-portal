@@ -452,7 +452,7 @@ export default function HomePage() {
                   <div className="flex items-end gap-2">
                     <img src={activeAgent.avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" style={{ border: `2px solid ${activeAgent.primaryColor}` }} />
                     <div className="max-w-[80%] px-4 py-3" style={{ background: 'rgba(255,249,240,0.15)', borderRadius: '16px 16px 16px 4px', borderLeft: `3px solid ${activeAgent.primaryColor}`, color: 'white', fontSize: '0.9375rem', fontFamily: "'Inter', sans-serif", backdropFilter: 'blur(10px)' }}>
-                      Hey! I'm {activeAgent.name}. I can generate charts, run simulations, and even repaint this whole page. Watch this —
+                      Hey! I&apos;m {activeAgent.name}. I can generate charts, run simulations, and even repaint this whole page. Watch this —
                     </div>
                   </div>
 
@@ -474,7 +474,7 @@ export default function HomePage() {
                   {/* User message */}
                   <div className="flex justify-end">
                     <div className="max-w-[80%] px-4 py-3" style={{ backgroundColor: `${activeAgent.primaryColor}33`, borderRadius: '16px 16px 4px 16px', color: 'white', fontSize: '0.9375rem', fontFamily: "'Inter', sans-serif" }}>
-                      That's amazing! What else can you do?
+                      That&apos;s amazing! What else can you do?
                     </div>
                   </div>
 

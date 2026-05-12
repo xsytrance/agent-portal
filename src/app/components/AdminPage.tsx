@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAgent } from '@/app/context/AgentContext';
 import { useAdminConfig } from '@/app/hooks/useAdminConfig';
@@ -110,7 +111,7 @@ export default function Admin() {
           className="mb-8"
         >
           <div className="flex items-center gap-3 mb-2">
-            <a
+            <Link
               href="/"
               className="flex items-center gap-1.5 transition-colors"
               style={{
@@ -125,7 +126,7 @@ export default function Admin() {
             >
               <ArrowLeft size={14} />
               Back to Site
-            </a>
+            </Link>
           </div>
           <h1
             className="font-bold"

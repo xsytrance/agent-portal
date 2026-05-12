@@ -1,64 +1,78 @@
-/**
- * Atlas Brain — Core Type Definitions
- *
- * These types define the behavioral signal/decision loop that drives
- * the floating eye, particle mood, silence mode, and rare event triggers.
- */
+// ============================================
+// Atlas Brain — Shared Types (all agents use)
+// ============================================
 
-/** User interaction signals fed into the brain on each tick */
+export type AtlasMode = 'OBSERVING' | 'REACTING' | 'THINKING' | 'RESTING';
+export type AtlasMood = 'calm' | 'curious' | 'thoughtful';
+export type SilenceMode = 'OBSERVING' | 'RESTING' | 'THINKING';
+
+export interface AtlasState {
+  mode: AtlasMode;
+  mood: AtlasMood;
+  attentionLevel: number;        // 0-100
+  silenceMode: SilenceMode;
+  sessionTimeMs: number;         // ms since session start
+  lastActivityMs: number;        // ms since last user activity
+  lastBehaviorChangeMs: number;  // ms since last mode change
+  behaviorChangeCount: number;
+  rareEventFired: boolean;
+  userInteractionCount: number;  // hovers, clicks, scrolls, messages
+  isIdle: boolean;
+  density: 'ambient' | 'low' | 'medium';
+}
+
+export interface EyeBehavior {
+  trackingSpeed: number;      // lerp factor (0.01-0.1)
+  blinkRateMin: number;       // ms min between blinks
+  blinkRateMax: number;       // ms max between blinks
+  movementRange: number;      // max movement from center (px)
+  lookAtCursor: boolean;
+  lookAway: boolean;          // look up/away (thinking mode)
+  returnToCenter: boolean;    // return to center (resting)
+  animationIntensity: number; // 0-1, controls all animation speed
+  pupilDilation: number;      // 0.8-1.3
+  eyelidOpenness: number;     // 0.3-1.0
+  thinkingWobble: boolean;    // subtle eye wobble when thinking
+}
+
+export interface ParticleMood {
+  speed: number;           // 0.2-2.0
+  count: number;           // 20-50
+  connectionOpacity: number; // 0.05-0.3
+  cursorRepulsion: boolean;
+  color: string;           // hex color
+  driftAmplitude: number;  // 0-30
+}
+
 export interface BehaviorSignal {
   type: 'IDLE' | 'HOVER' | 'SCROLL' | 'CHAT' | 'AGENT_SWITCH' | 'TICK';
   timestamp: number;
   payload?: Record<string, unknown>;
 }
 
-/** What the eye should be doing right now */
-export type EyeBehavior =
-  | 'IDLE'
-  | 'TRACKING'
-  | 'BLINK'
-  | 'SLEEPY'
-  | 'SURPRISED'
-  | 'HAPPY'
-  | 'CURIOUS'
-  | 'SPEAKING';
-
-/** Particle field mood state */
-export type ParticleMood =
-  | 'CALM'
-  | 'CURIOUS'
-  | 'EXCITED'
-  | 'CHAOTIC'
-  | 'SLEEPY';
-
-/** Silence / communication mode */
-export type SilenceMode =
-  | 'SILENT'
-  | 'OBSERVING'
-  | 'WHISPERING'
-  | 'SPEAKING'
-  | 'INTERRUPTED';
-
-/** The brain's behavioral output after processing a signal */
 export interface BehaviorDecision {
   eyeBehavior: EyeBehavior;
   particleMood: ParticleMood;
   silenceMode: SilenceMode;
   shouldSpeak: boolean;
   speakDelayMs: number;
-  rareEventTrigger?: string | null;
+  message?: string;
+  rareEventTrigger?: boolean;
 }
 
-/** Full snapshot of AtlasBrain internal state */
-export interface AtlasState {
-  /** 0-100 attention level */
-  attention: number;
-  /** Current mode label */
-  mode: string;
-  /** How many ticks have elapsed */
-  tickCount: number;
-  /** When the last signal was received */
-  lastSignalAt: number;
-  /** History of recent decisions (last 50) */
-  recentDecisions: BehaviorDecision[];
+export interface AtlasConfig {
+  tickIntervalMs: number;
+  idleThresholdMs: number;
+  thinkingDurationMs: number;
+  restingBlinkRateMin: number;
+  restingBlinkRateMax: number;
+  observingBlinkRateMin: number;
+  observingBlinkRateMax: number;
+  minBehaviorChangeIntervalMs: number;
+  rareEventTriggerTimeMs: number;
+  rareEventMinInteractions: number;
+  attentionRecoveryRate: number;
+  attentionEventCost: number;
+  attentionThresholdLow: number;
+  attentionThresholdCritical: number;
 }

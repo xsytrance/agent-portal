@@ -34,7 +34,7 @@ export interface AtlasBrainAPI {
   /** Whether a rare event is ready to fire (consume it!) */
   rareEventReady: boolean;
   /** Consume the current rare event trigger (returns it and clears) */
-  consumeRareEvent: () => string | null;
+  consumeRareEvent: () => boolean;
   /** Signal that the user has gone idle */
   signalIdle: () => void;
   /** Signal that the user hovered over an interactive zone */
@@ -59,7 +59,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
 
   // Refs for the tick loop and rare-event consumption
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rareEventRef = useRef<string | null>(null);
+  const rareEventRef = useRef<boolean>(false);
 
   // ── Initialise brain & tick loop ────────────────────────────────
   useEffect(() => {
@@ -77,9 +77,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
     setState(initialState);
     setDecision(initialDecision);
     setRareReady(!!initialDecision.rareEventTrigger);
-    if (initialDecision.rareEventTrigger) {
-      rareEventRef.current = initialDecision.rareEventTrigger;
-    }
+    rareEventRef.current = !!initialDecision.rareEventTrigger;
 
     // Tick loop: every 500 ms
     tickRef.current = setInterval(() => {
@@ -161,9 +159,9 @@ export function useAtlasBrain(): AtlasBrainAPI {
   );
 
   // ── Rare event consumption ──────────────────────────────────────
-  const consumeRareEvent = useCallback((): string | null => {
+  const consumeRareEvent = useCallback((): boolean => {
     const ev = rareEventRef.current;
-    rareEventRef.current = null;
+    rareEventRef.current = false;
     setRareReady(false);
     return ev;
   }, []);

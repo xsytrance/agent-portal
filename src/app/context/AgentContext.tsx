@@ -162,6 +162,21 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
 export function useAgent() {
   const ctx = useContext(AgentContext);
-  if (!ctx) throw new Error('useAgent must be used within AgentProvider');
+  if (!ctx) {
+    // SSR-safe: return default during prerender
+    return {
+      activeAgent: agentsData[0],
+      agents: agentsData,
+      selectAgent: () => {},
+      chatOpen: false,
+      setChatOpen: () => {},
+      agentMessage: null,
+      setAgentMessage: () => {},
+      isThinking: false,
+      setIsThinking: () => {},
+      autonomousEnabled: false,
+      setAutonomousEnabled: () => {},
+    } as AgentContextType;
+  }
   return ctx;
 }
