@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAgent } from '@/app/context/AgentContext';
 import { useReducedMotion } from '@/app/hooks/useReducedMotion';
+import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
 interface FloatingEyeProps {
   size?: number;
   mobileSize?: number;
+  atlasBrain?: AtlasBrainAPI | null;
 }
 
-export default function FloatingEye({ size = 96, mobileSize = 64 }: FloatingEyeProps) {
+export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: FloatingEyeProps) {
   const { activeAgent, setChatOpen, agentMessage, isThinking } = useAgent();
   const reducedMotion = useReducedMotion();
   const eyeRef = useRef<HTMLDivElement>(null);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAgent } from '@/app/context/AgentContext';
 import { useReducedMotion } from '@/app/hooks/useReducedMotion';
+import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
 interface Particle {
   x: number;
@@ -20,12 +21,14 @@ interface ParticleBackgroundProps {
   particleCount?: number;
   className?: string;
   style?: React.CSSProperties;
+  atlasBrain?: AtlasBrainAPI | null;
 }
 
 export default function ParticleBackground({
   particleCount,
   className,
   style,
+  atlasBrain,
 }: ParticleBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { activeAgent } = useAgent();

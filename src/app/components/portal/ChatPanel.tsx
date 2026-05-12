@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAgent } from '@/app/context/AgentContext';
+import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
 interface Message {
   id: string;
@@ -20,8 +21,19 @@ const mockConversation: { role: 'agent' | 'user'; content: string; isChart?: boo
   { role: 'agent', content: "Try typing something below, or just keep exploring. I'll be right here." },
 ];
 
-export default function ChatPanel() {
+interface ChatPanelProps {
+  atlasBrain?: AtlasBrainAPI | null;
+}
+
+export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   const { activeAgent, chatOpen, setChatOpen, setIsThinking } = useAgent();
+
+  // Signal chat interaction to AtlasBrain
+  useEffect(() => {
+    if (chatOpen && atlasBrain) {
+      atlasBrain.signalChat();
+    }
+  }, [chatOpen, atlasBrain]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
