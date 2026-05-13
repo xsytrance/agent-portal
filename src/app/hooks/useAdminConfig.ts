@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { agentsData } from '@/app/lib/agents/starterAgents';
+import { agents as agentsData } from '@/app/lib/agents/starterAgents';
 
 export interface ApiKey {
   id: string;
