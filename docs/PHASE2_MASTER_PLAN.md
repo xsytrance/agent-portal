@@ -1,10 +1,10 @@
 # Agent Portal — Phase 2 Master Plan
 ## Behavior Director / Presence Layer Architecture
 
-**Version**: 1.0
+**Version**: 1.1
 **Date**: 2026-05-13
-**Status**: DESIGN REVIEW — No implementation approved yet
-**Total**: 10,398 lines across 6 sub-documents
+**Status**: APPROVED FOR ITERATIVE PLANNING — implementation should proceed in reviewable slices
+**Total**: 14,000+ lines across 7 sub-documents
 
 ---
 
@@ -20,6 +20,8 @@ The architecture separates **Thought** from **Speech** from **Action** from **Di
 
 **Recommended scope**: Option B (Moderate Presence Layer) — backend Behavior Director with SSE event planner, token budgets, per-agent behavior profiles, and admin controls.
 
+**2026-05-13 update**: xsy has approved modifying this roadmap. The plan below now prioritizes a conservative vertical-slice rollout: preserve the working portal, introduce typed contracts first, prove budgets before autonomy, and keep each slice independently shippable.
+
 ---
 
 ## 2. Recommended Phase 2 Scope
@@ -28,16 +30,19 @@ The architecture separates **Thought** from **Speech** from **Action** from **Di
 
 | Layer | What | Status |
 |-------|------|--------|
+| **Current Portal Stabilization** | Align duplicated agent data, verify current chat/events/admin paths, document known gaps | BUILD FIRST |
+| **Behavior Contracts** | BehaviorPlan, InputSignal, behavior event types, and validation with no runtime autonomy yet | BUILD FIRST |
 | **Behavior Director** | Server-side decision engine with mood system, cooldowns, priority matrix | BUILD |
 | **Event Planner** | Priority queue for BehaviorPlans with merge/cancel/expire | BUILD |
-| **Token Budget** | Per-session budgets with graceful degradation | BUILD |
+| **Token Budget** | Per-session budgets with graceful degradation | BUILD BEFORE COSTLY AUTONOMY |
 | **Input Signals** | Frontend signal capture (mouse, scroll, idle, hover, chat) | BUILD |
 | **Per-Agent Profiles** | Behavior tuning for Nova/Jinx/Atlas | BUILD |
+| **Attention Density** | Fatigue-aware pacing, rarity, and silence recovery from `attention-economy.md` | BUILD |
 | **Silence System** | 6 silence modes with per-agent visual expression | BUILD |
 | **SSE Enhancement** | BehaviorPlans → Events → SSE → Frontend Theater | BUILD |
 | **Admin Presence Controls** | Talkativeness, chaos, budget, event type filters | BUILD |
 | **Safety Guardrails** | Hard stops, mock indicators, audit trail | BUILD |
-| **Webhook Foundation** | `/api/webhook/generic` endpoint + normalizer pattern | BUILD |
+| **Webhook Foundation** | `/api/webhook/generic` endpoint + normalizer pattern | BUILD AFTER CORE LOOP |
 
 ### NOT in Phase 2
 
@@ -49,6 +54,24 @@ The architecture separates **Thought** from **Speech** from **Action** from **Di
 | Streaming LLM responses | Complexity, limited visual benefit | Phase 3 |
 | Multi-modal (images, audio) | Not needed for core presence | Phase 3 |
 | NextAuth/Clerk auth | Basic auth sufficient for now | Phase 3 |
+
+### Current Repo Baseline
+
+The repository already contains a useful Phase 1.6-style foundation:
+
+- Next.js app shell with the user-facing portal, floating eye, particles, chat panel, and admin page.
+- Three starter agents (Nova, Jinx, Atlas) with personality copy and theme colors.
+- Mock/OpenRouter chat route with fallback to mock responses.
+- In-memory `PortalEvent` store, event validation, event CRUD, and SSE mock-event stream.
+- Client-side autonomous loop that emits idle speech bubbles while respecting reduced motion.
+- Admin panels for API keys, agent config, autonomous loop settings, feature flags, prompts, and logs.
+
+Before adding Phase 2 behavior infrastructure, stabilize these seams:
+
+1. **Unify agent definitions.** Agent data currently exists in both context and library locations; Phase 2 profiles should extend one canonical registry.
+2. **Keep autonomy server-authoritative.** The existing client idle loop is a demo behavior. Phase 2 should route signals to the server and let the Behavior Director decide.
+3. **Preserve mock-first operation.** OpenRouter chat exists today, but autonomous expensive calls must remain gated until token budgets and audit logs are active.
+4. **Convert docs into contracts gradually.** Start with shared TypeScript types and validators, then wire runtime behavior after tests prove the contracts.
 
 ---
 
@@ -146,14 +169,15 @@ Priority = Base × Mood_Multiplier × Personality_Weight × Cooldown_Penalty × 
 
 | Document | Lines | Scope | Key Sections |
 |----------|-------|-------|--------------|
-| [behavior-director.md](phase2-plan/behavior-director.md) | 2,377 | Decision engine, mood, cooldowns, state machine | 6-state machine, 8 moods, 7 silence modes, priority formula, 17 TypeScript interfaces |
-| [event-systems.md](phase2-plan/event-systems.md) | 2,044 | Event contracts, BehaviorPlan model, queues | BehaviorPlan interface, 10 new event types, input signals, priority queue design |
-| [ux-presence.md](phase2-plan/ux-presence.md) | 802 | Presence UX, silence, per-agent profiles | 5 presence laws, 6 silence modes × 3 agents, conversation flow, anti-patterns |
-| [token-budget.md](phase2-plan/token-budget.md) | 1,699 | Cost control, budgets, degradation | 3-tier costs, session budgets, emergency cutoffs, 4-tier degradation cascade |
-| [integration.md](phase2-plan/integration.md) | 1,922 | External system plugins, webhooks | Extended provider interface, 4 external source types, normalizer pattern, circuit breaker |
-| [admin-safety.md](phase2-plan/admin-safety.md) | 1,554 | Admin controls, safety, trust | 40+ admin controls, 15 safety rules, 7 hard stops, mock indicator design |
+| [behavior-director.md](phase2/behavior-director.md) | 2,377 | Decision engine, mood, cooldowns, state machine | 6-state machine, 8 moods, 7 silence modes, priority formula, 17 TypeScript interfaces |
+| [event-systems.md](phase2/event-systems.md) | 2,044 | Event contracts, BehaviorPlan model, queues | BehaviorPlan interface, 10 new event types, input signals, priority queue design |
+| [ux-presence.md](phase2/ux-presence.md) | 802 | Presence UX, silence, per-agent profiles | 5 presence laws, 6 silence modes x 3 agents, conversation flow, anti-patterns |
+| [attention-economy.md](phase2/attention-economy.md) | 4,000+ | Attention budget, presence density, fatigue, rarity | Presence density engine, attention costs, silence recovery, rarity tuning |
+| [token-budget.md](phase2/token-budget.md) | 1,699 | Cost control, budgets, degradation | 3-tier costs, session budgets, emergency cutoffs, 4-tier degradation cascade |
+| [integration.md](phase2/integration.md) | 1,922 | External system plugins, webhooks | Extended provider interface, 4 external source types, normalizer pattern, circuit breaker |
+| [admin-safety.md](phase2/admin-safety.md) | 1,554 | Admin controls, safety, trust | 40+ admin controls, 15 safety rules, 7 hard stops, mock indicator design |
 
-**Total: 10,398 lines of architecture documentation**
+**Total: 14,000+ lines of architecture documentation**
 
 ---
 
@@ -335,43 +359,73 @@ Backend provides:
 
 ---
 
-## 11. Implementation Phases
+## 11. Implementation Slices
 
-### Phase 2a: Foundation (Week 1)
-- [ ] Behavior Director core (decision cycle, state machine)
-- [ ] Mood system (8 moods, per-agent defaults)
-- [ ] Cooldown system (per-event + global + session)
-- [ ] Input signal types + frontend signal capture
-- [ ] BehaviorPlan data model + event queue
+Build Phase 2 as vertical slices that can each be reviewed, tested, and shipped independently. Avoid landing a large framework before at least one real portal behavior uses it.
 
-### Phase 2b: Intelligence (Week 2)
-- [ ] Token budget system (session budgets, status transitions)
-- [ ] Cost tier classification (free/cheap/expensive)
-- [ ] Graceful degradation cascade
-- [ ] Per-agent behavior profiles (Nova/Jinx/Atlas)
-- [ ] Silence system (6 modes, per-agent visual)
+### Slice 0: Stabilize Current Portal Baseline
+- [ ] Run current lint/build and record existing failures before Phase 2 work.
+- [ ] Consolidate agent data into one registry consumed by context, admin defaults, chat, and behavior profiles.
+- [ ] Add a short `docs/current-architecture.md` or README section that lists current routes, providers, and event flows.
+- [ ] Add smoke tests or minimal route tests for `/api/health`, `/api/agent/chat`, and `/api/agent/events`.
 
-### Phase 2c: Experience (Week 3)
-- [ ] Frontend signal capture (mouse, scroll, idle, hover)
-- [ ] Frontend theater (event interpretation → animation)
-- [ ] Eye behavior engine (mood-driven eye movements)
-- [ ] Particle mood mapper (mood → particle behavior)
-- [ ] Surprise and delight system
+**Acceptance criteria:** existing portal behavior still works, agent definitions have one source of truth, and the current demo autonomous loop remains unchanged from a user's perspective.
 
-### Phase 2d: Control (Week 4)
-- [ ] Admin presence controls panel
-- [ ] Admin token budget panel
-- [ ] Admin safety controls panel
-- [ ] Safety guardrails + hard stops
-- [ ] Mock indicator UX
-- [ ] Audit trail foundation
+### Slice 1: Contracts-Only Behavior Foundation
+- [ ] Add `lib/behavior/behaviorTypes.ts` for BehaviorState, MoodVector, BehaviorPlan, PlannedEvent, and DirectorDecision.
+- [ ] Add `lib/signals/signalTypes.ts` for user, system, admin, and external signals.
+- [ ] Extend event validation to recognize behavior events without changing runtime emission.
+- [ ] Add unit tests for type guards/validators and invalid payload rejection.
 
-### Phase 2e: Integration (Week 5)
-- [ ] Webhook endpoint foundation (`/api/webhook/generic`)
-- [ ] Event normalizer pattern
-- [ ] Provider capability discovery
-- [ ] Agent-to-agent event bus
-- [ ] Full end-to-end testing
+**Acceptance criteria:** no new autonomous behavior yet; contracts compile, validators reject malformed input, and existing event APIs remain backward-compatible.
+
+### Slice 2: Server-Side Decision Core in Mock Mode
+- [ ] Implement a pure Behavior Director function: `decide(signal, session, profile, budget) -> BehaviorPlan`.
+- [ ] Implement mood anchors, cooldown checks, silence modes, and attention-density gating with deterministic seeded tests.
+- [ ] Keep all expensive actions disabled; generated plans should use free visual/template events only.
+- [ ] Add debug/audit events for why the director chose silence, visual action, template speech, or no-op.
+
+**Acceptance criteria:** tests prove each agent makes different choices for the same signal, cooldowns suppress repeats, and silence is an explicit decision rather than absence of code.
+
+### Slice 3: Budget and Safety Gate
+- [ ] Add session token budget tracking, cost tier classification, and degradation states.
+- [ ] Wrap `/api/agent/chat` with budget checks and audit logging before OpenRouter calls.
+- [ ] Add emergency cutoff and provider-error fallback behavior.
+- [ ] Expose read-only budget status through an admin API before adding write controls.
+
+**Acceptance criteria:** OpenRouter calls are blocked when budget is exhausted, mock/template responses continue to work, and every expensive call has an audit record.
+
+### Slice 4: Signal Ingestion and Event Queue
+- [ ] Add `/api/agent/signals` for frontend signal ingestion.
+- [ ] Implement priority queue with merge/cancel/expire semantics.
+- [ ] Replace direct client autonomous decisions with signal submission while preserving reduced-motion behavior.
+- [ ] Wire BehaviorPlans into the existing event store/SSE path.
+
+**Acceptance criteria:** idle/hover/activity signals produce server-approved plans, duplicate noisy signals are throttled, and SSE clients receive ordered behavior events.
+
+### Slice 5: Frontend Theater and Presence UX
+- [ ] Map PlannedEvent display metadata to existing eye, particle, chat, card, and theme components.
+- [ ] Add silence-mode visuals for Nova/Jinx/Atlas.
+- [ ] Add fatigue-aware animation intensity and respect reduced motion at the rendering layer.
+- [ ] Add manual walkthrough coverage for quiet, attentive, responding, creating, and sleep states.
+
+**Acceptance criteria:** the agent feels alive without constant speech, all visual behavior can be traced to an event, and reduced-motion users do not receive high-intensity effects.
+
+### Slice 6: Admin Controls and Operational Visibility
+- [ ] Add presence, budget, safety, sessions, and audit panels incrementally.
+- [ ] Make high-risk controls server-backed rather than only localStorage-backed.
+- [ ] Add mock-mode and degraded-mode indicators to user/admin surfaces.
+- [ ] Provide exportable logs for LLM calls, autonomous events, config changes, and safety cutoffs.
+
+**Acceptance criteria:** an operator can pause autonomy, inspect why an event fired, see budget state, and confirm whether the portal is in mock/degraded/production mode.
+
+### Slice 7: Integration Foundation
+- [ ] Add `/api/webhook/generic` with authentication, payload limits, and normalizer selection.
+- [ ] Keep OpenClaw/Hermes source-specific routes as adapters over the generic foundation when those systems are ready.
+- [ ] Add provider capability discovery and a priority-based provider registry.
+- [ ] Add end-to-end tests covering webhook -> normalized event -> BehaviorPlan -> SSE.
+
+**Acceptance criteria:** external systems can submit safe normalized events without coupling the portal to a specific backend agent implementation.
 
 ---
 
@@ -380,13 +434,15 @@ Backend provides:
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | **Over-engineering** | High | Start with Option B, resist Option C temptations |
-| **Too many moving parts** | Medium | 5-week phased implementation, test each phase |
+| **Too many moving parts** | Medium | Slice-by-slice implementation, test each slice before adding the next |
 | **Token cost surprises** | High | Hard budgets, automatic cutoffs, start in mock mode |
 | **Frontend performance** | Medium | Batch free events, throttle signals, use RAF |
 | **User finds agent annoying** | High | Anti-pattern enforcement, mute button, respect checks |
 | **Complex state management** | Medium | Server-side state, client only renders |
 | **SSE scalability** | Low | One stream per client, max 20 events per stream |
 | **Integration complexity** | Medium | Clean contracts, normalizer pattern, no tight coupling |
+| **Plan/code drift** | Medium | Keep the master plan linked to real file paths, update acceptance criteria as slices land |
+| **Duplicated agent config** | Medium | Consolidate starter agents before adding behavior profiles |
 
 ---
 
@@ -488,14 +544,14 @@ app/
 
 ## 15. What to Build First
 
-1. **Behavior Director core** — The decision engine. Everything else depends on it.
-2. **BehaviorPlan + Event Queue** — The contract between decisions and execution.
-3. **Token Budget** — Cost protection. Must be in place before any real LLM calls.
-4. **Per-agent profiles** — Makes the 3 agents feel different.
-5. **Frontend signal capture** — Mouse, idle, hover signals feeding the Director.
-6. **Silence system** — 6 modes with per-agent visual expression.
-7. **Admin presence controls** — Operators need to configure and monitor.
-8. **Safety guardrails** — Hard stops before any real usage.
+1. **Stabilize the current portal baseline** — Verify build/lint, consolidate duplicated agent data, and document current routes.
+2. **BehaviorPlan + InputSignal contracts** — Establish typed boundaries before runtime complexity.
+3. **Behavior Director pure decision core** — Make decisions testable without UI or network calls.
+4. **Token Budget + Safety Gate** — Cost protection must precede any autonomous OpenRouter use.
+5. **Event Queue + SSE wiring** — Connect plans to the existing event stream after contracts and safety are proven.
+6. **Per-agent profiles + silence system** — Make Nova/Jinx/Atlas feel distinct through behavior, not just copy.
+7. **Frontend theater** — Render planned events consistently across eye, particles, cards, and chat.
+8. **Admin controls + audit trail** — Give operators visibility and emergency controls before integrations.
 
 ---
 
@@ -507,21 +563,21 @@ app/
 4. **Streaming LLM** — Complexity exceeds benefit for Phase 2
 5. **Multi-modal** — Images/audio not needed for core presence
 6. **Advanced auth** — Basic auth sufficient
-7. **Real OpenRouter integration** — Only after token budget is proven
+7. **Unbudgeted OpenRouter autonomy** — Chat can use OpenRouter today, but autonomous expensive calls wait for budgets/audit
 
 ---
 
 ## 17. Final Recommendation
 
-**Approve Phase 2 Option B (Moderate Presence Layer).**
+**Proceed with Phase 2 Option B (Moderate Presence Layer), delivered through the implementation slices above.**
 
-The architecture is thorough, practical, and avoids over-engineering. The Behavior Director design separates concerns cleanly. The token budget system provides safety. The per-agent profiles create personality. The integration points are clean extension contracts for xsy/Juan's future systems.
+The architecture is thorough and practical, but it should be landed in smaller increments than the original plan implied. Start by stabilizing today's portal and converting the design docs into executable contracts. Then add the Behavior Director as a pure, testable decision engine before routing live frontend signals through it.
 
-**Estimated effort**: 5 weeks (phased as 2a→2b→2c→2d→2e)
-**Estimated new code**: ~4,000-6,000 lines
+**Estimated new code**: ~4,000-6,000 lines if the full Phase 2 surface is built
 **Risk level**: Medium (complex state machine, but well-documented)
+**Recommended first PR**: Slice 0 + Slice 1 only — current baseline stabilization and contracts without runtime autonomy
 
-**Prerequisite**: Review this plan with xsy + ChatGPT before any implementation begins.
+**Implementation rule**: no expensive autonomous behavior ships until budgets, audit logging, mock/degraded indicators, and emergency cutoff are active.
 
 ---
 
@@ -530,11 +586,12 @@ The architecture is thorough, practical, and avoids over-engineering. The Behavi
 | Document | Path | Lines | Key Content |
 |----------|------|-------|-------------|
 | **This document** | `PHASE2_MASTER_PLAN.md` | ~500 | Executive summary, scope, recommendations |
-| Behavior Director | `phase2-plan/behavior-director.md` | 2,377 | Decision engine, state machine, mood, cooldowns, silence |
-| Event Systems | `phase2-plan/event-systems.md` | 2,044 | BehaviorPlan model, event queue, input signals, new event types |
-| UX Presence | `phase2-plan/ux-presence.md` | 802 | Presence philosophy, per-agent profiles, anti-patterns |
-| Token Budget | `phase2-plan/token-budget.md` | 1,699 | Cost tiers, budgets, degradation, emergency cutoffs |
-| Integration | `phase2-plan/integration.md` | 1,922 | Webhooks, normalizers, provider extensibility, handoff contract |
-| Admin & Safety | `phase2-plan/admin-safety.md` | 1,554 | Admin controls, safety rules, hard stops, audit trail |
+| Behavior Director | `phase2/behavior-director.md` | 2,377 | Decision engine, state machine, mood, cooldowns, silence |
+| Event Systems | `phase2/event-systems.md` | 2,044 | BehaviorPlan model, event queue, input signals, new event types |
+| UX Presence | `phase2/ux-presence.md` | 802 | Presence philosophy, per-agent profiles, anti-patterns |
+| Attention Economy | `phase2/attention-economy.md` | 4,000+ | Presence density, attention budget, fatigue, rarity, silence recovery |
+| Token Budget | `phase2/token-budget.md` | 1,699 | Cost tiers, budgets, degradation, emergency cutoffs |
+| Integration | `phase2/integration.md` | 1,922 | Webhooks, normalizers, provider extensibility, handoff contract |
+| Admin & Safety | `phase2/admin-safety.md` | 1,554 | Admin controls, safety rules, hard stops, audit trail |
 
-**STOP. Plan complete. Awaiting xsy + ChatGPT review before Phase 2 implementation.**
+**Next action:** start with Slice 0 + Slice 1 so the codebase has a stable baseline and typed Phase 2 contracts before behavior runtime work begins.
