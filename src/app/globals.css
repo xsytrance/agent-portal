@@ -66,6 +66,10 @@
   }
 }
 
+@theme inline {
+  --color-border: hsl(var(--border));
+}
+
 @layer base {
   * {
     @apply border-border;
