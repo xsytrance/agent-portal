@@ -7,6 +7,8 @@ import { info, error } from '@/app/lib/logger';
 const mockProvider = new MockProvider();
 registerProvider(mockProvider);
 
+type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
+
 async function ensureOpenRouterProvider(): Promise<void> {
   const key = await getOpenRouterKey();
   if (key && key.startsWith('sk-or-')) {
@@ -32,8 +34,20 @@ function createMockResponse(message: string, agentId: string): { response: strin
   };
 }
 
+function isChatHistoryEntry(entry: unknown): entry is ChatHistoryEntry {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const raw = entry as Record<string, unknown>;
+  return (raw.role === 'user' || raw.role === 'assistant') && typeof raw.content === 'string';
+}
+
+function sanitizeHistory(history: unknown): ChatHistoryEntry[] | undefined {
+  if (history === undefined) return undefined;
+  if (!Array.isArray(history)) return undefined;
+  return history.filter(isChatHistoryEntry);
+}
+
 export async function POST(request: Request) {
-  let body: { message?: string; agentId?: string; history?: Array<{ role: string; content: string }> };
+  let body: { message?: string; agentId?: string; history?: unknown };
 
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON body', mock: false }, { status: 400 });
@@ -43,6 +57,7 @@ export async function POST(request: Request) {
   if (!message || typeof message !== 'string') {
     return NextResponse.json({ error: 'message is required and must be a string', mock: false }, { status: 400 });
   }
+  const history = sanitizeHistory(body.history);
 
   await ensureOpenRouterProvider();
 
@@ -52,7 +67,7 @@ export async function POST(request: Request) {
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
-        const result = await orProvider.chat({ message, agentId, history: body.history });
+        const result = await orProvider.chat({ message, agentId, history });
         return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false });
       }
     } catch (err) {

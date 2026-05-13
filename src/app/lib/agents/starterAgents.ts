@@ -1,6 +1,6 @@
-import { Agent } from './agentTypes';
+import type { Agent } from './agentTypes';
 
-export const agents: Agent[] = [
+export const agentsData: Agent[] = [
   {
     id: 'nova',
     name: 'Professor Nova',
@@ -95,3 +95,6 @@ export const agents: Agent[] = [
     ]
   }
 ];
+
+// Backward-compatible alias while the rest of the app converges on agentsData.
+export const agents = agentsData;
