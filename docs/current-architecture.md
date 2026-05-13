@@ -23,6 +23,7 @@ This document captures the current implementation baseline before Phase 2 behavi
 - `GET /api/health` - health check.
 - `POST /api/agent/chat` - chat response, using OpenRouter when configured and mock fallback otherwise.
 - `GET /api/agent/config` - starter agent configuration.
+- `POST /api/agent/behavior/decide` - safe mock-mode Behavior Director decision endpoint.
 - `GET/POST /api/agent/events` - in-memory event store access with validation.
 - `GET /api/agent/stream` - mock SSE event stream.
 - `GET /api/admin/config` - runtime config summary.
@@ -45,3 +46,4 @@ This document captures the current implementation baseline before Phase 2 behavi
 - Input signal contracts live in `src/app/lib/signals/signalTypes.ts`.
 - Input signal validation lives in `src/app/lib/signals/signalValidator.ts`.
 - Event validation recognizes the `behavior.*` event namespace, but no new runtime behavior emits those events yet.
+- `decideBehavior` produces server-side `DirectorDecision` and `BehaviorPlan` objects in mock mode. It never calls an LLM provider; it only returns free visual/template plans for callers to inspect.

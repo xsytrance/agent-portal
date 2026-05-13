@@ -98,6 +98,63 @@ export interface BehaviorPlan {
   expiresAt?: string;
 }
 
+export interface BehaviorProfile {
+  agentId: string;
+  displayName: string;
+  defaultMood: MoodVector;
+  talkativeness: number;
+  chaosLevel: number;
+  visualEnergy: number;
+  interruptionLevel: number;
+  tokenBudget: number;
+  preferredStates: BehaviorState[];
+  silenceStyle: string;
+  cooldowns: {
+    chatMs: number;
+    visualMs: number;
+    spectacleMs: number;
+  };
+  templates: {
+    acknowledgement: string;
+    idle: string;
+    cooldown: string;
+    budgetBlocked: string;
+  };
+}
+
+export interface BehaviorSessionContext {
+  sessionId: string;
+  activeAgentId: string;
+  startedAt: string;
+  lastInteractionAt?: string;
+  recentDecisions?: Array<{
+    at: string;
+    agentId: string;
+    signalType: string;
+    state: BehaviorState;
+    eventType?: PortalEventType;
+  }>;
+}
+
+export interface BehaviorBudgetSnapshot {
+  status: BudgetStatus;
+  tokensUsed: number;
+  tokenLimit: number;
+  expensiveActionsUsed: number;
+  expensiveActionLimit: number;
+}
+
+export interface BehaviorDirectorInput {
+  signalId: string;
+  signalType: string;
+  signalSource: PortalEventSource;
+  signalPayload: Record<string, unknown>;
+  profile: BehaviorProfile;
+  session: BehaviorSessionContext;
+  budget: BehaviorBudgetSnapshot;
+  now: string;
+}
+
 export interface DirectorDecision {
   state: BehaviorState;
   reason: string;
