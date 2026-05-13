@@ -3,7 +3,12 @@ import { getOpenRouterKey, getOpenRouterModel } from '@/app/lib/config/serverCon
 import { MockProvider, registerProvider } from '@/app/lib/providers/providerAdapter';
 import { OpenRouterProvider } from '@/app/lib/providers/openRouterProvider';
 import { estimateChatTokens, classifyChatCost } from '@/app/lib/budget/costTiers';
-import { assessBudgetForAction, recordUsage } from '@/app/lib/budget/budgetManager';
+import { getUserContext } from '@/app/lib/auth/userContext';
+import {
+  authorizeProviderCall,
+  markProviderCallFailed,
+  reconcileProviderCall,
+} from '@/app/lib/providers/commercialOpenRouter';
 import { info, error, warn } from '@/app/lib/logger';
 
 const mockProvider = new MockProvider();
@@ -11,13 +16,13 @@ registerProvider(mockProvider);
 
 type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
 
-async function ensureOpenRouterProvider(): Promise<void> {
+async function ensureOpenRouterProvider(model?: string): Promise<void> {
   const key = await getOpenRouterKey();
   if (key && key.startsWith('sk-or-')) {
     registerProvider(new OpenRouterProvider(
       {
         providerId: 'openrouter', providerName: 'OpenRouter',
-        baseUrl: 'https://openrouter.ai/api/v1', model: await getOpenRouterModel(),
+        baseUrl: 'https://openrouter.ai/api/v1', model: model ?? await getOpenRouterModel(),
         keyRef: 'OPENROUTER_API_KEY', enabled: true,
       }, key
     ));
@@ -64,7 +69,7 @@ function sanitizeHistory(history: unknown): ChatHistoryEntry[] | undefined {
 }
 
 export async function POST(request: Request) {
-  let body: { message?: string; agentId?: string; history?: unknown; sessionId?: string };
+  let body: { message?: string; agentId?: string; history?: unknown; sessionId?: string; model?: string };
 
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON body', mock: false }, { status: 400 });
@@ -78,8 +83,7 @@ export async function POST(request: Request) {
   const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim()
     ? body.sessionId.trim()
     : 'default';
-
-  await ensureOpenRouterProvider();
+  const user = await getUserContext(request);
 
   const key = await getOpenRouterKey();
   const hasProviderKey = !!key && key.startsWith('sk-or-');
@@ -87,56 +91,68 @@ export async function POST(request: Request) {
   const estimatedTokens = estimateChatTokens(message, history);
 
   if (hasProviderKey) {
-    const budgetDecision = await assessBudgetForAction(sessionId, estimatedTokens, costTier);
-    if (!budgetDecision.allowed) {
+    const authorization = await authorizeProviderCall({
+      userId: user.userId,
+      agentId,
+      model: body.model,
+      message,
+      history,
+    });
+
+    if (!authorization.allowed || !authorization.pricing || !authorization.providerRequestId) {
       await warn('chat-route', 'Serving mock response because budget blocked provider call', {
         route: '/api/agent/chat',
         details: {
           agentId,
+          userId: user.userId,
           sessionId,
-          reason: budgetDecision.reason,
-          status: budgetDecision.status,
-          estimatedTokens,
+          reason: authorization.reason,
+          estimatedMicrocredits: authorization.estimatedMicrocredits.toString(),
         },
       });
       return NextResponse.json({
-        ...createBudgetBlockedResponse(message, agentId, budgetDecision.reason),
+        ...createBudgetBlockedResponse(message, agentId, authorization.reason ?? 'Provider call not authorized.'),
         budget: {
-          status: budgetDecision.status,
+          status: 'blocked',
           estimatedTokens,
-          remainingTokens: budgetDecision.snapshot.remainingTokens,
+          estimatedMicrocredits: authorization.estimatedMicrocredits.toString(),
         },
+        user,
       });
     }
 
     try {
+      await ensureOpenRouterProvider(authorization.pricing.model);
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
         const result = await orProvider.chat({ message, agentId, history });
-        await recordUsage({
-          sessionId,
+        await reconcileProviderCall({
+          providerRequestId: authorization.providerRequestId,
+          userId: user.userId,
           agentId,
-          action: 'chat',
-          costTier,
-          promptTokens: result.usage?.prompt ?? estimatedTokens,
+          pricing: authorization.pricing,
+          estimatedMicrocredits: authorization.estimatedMicrocredits,
+          promptTokens: result.usage?.prompt ?? authorization.estimatedPromptTokens,
           completionTokens: result.usage?.completion ?? 0,
           model: result.model,
         });
-        return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false });
+        return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false, user });
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      await markProviderCallFailed(authorization.providerRequestId, errMsg);
       await error('chat-route', `OpenRouter failed, falling back to mock: ${errMsg}`, { route: '/api/agent/chat', details: { agentId } });
     }
   }
 
-  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId } });
+  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId, userId: user.userId } });
   return NextResponse.json({
     ...createMockResponse(message, agentId),
     budget: {
       costTier,
       estimatedTokens,
     },
+    user,
   });
 }

@@ -22,6 +22,8 @@ The architecture separates **Thought** from **Speech** from **Action** from **Di
 
 **2026-05-13 update**: xsy has approved modifying this roadmap. The plan below now prioritizes a conservative vertical-slice rollout: preserve the working portal, introduce typed contracts first, prove budgets before autonomy, and keep each slice independently shippable.
 
+**Commercialization pivot**: Agent Portal is no longer only an AI chat/presence prototype. The business model is a managed multi-model AI workspace with prepaid credits and personality-driven agents. Commercial reliability, wallet integrity, provider cost protection, and operational trust now sit alongside Behavior Director as first-class architecture concerns. See [Commercialization Slice A](COMMERCIALIZATION_SLICE_A.md).
+
 ---
 
 ## 2. Recommended Phase 2 Scope

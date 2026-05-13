@@ -21,6 +21,11 @@ This document captures the current implementation baseline before Phase 2 behavi
 ## Current API Routes
 
 - `GET /api/health` - health check.
+- `GET/POST /api/auth/[...nextauth]` - Auth.js session foundation.
+- `GET /api/wallet` - current user/guest wallet balance.
+- `GET /api/wallet/history` - current user/guest immutable wallet ledger history.
+- `POST /api/stripe/checkout` - Stripe Checkout session creation for prepaid credit packs.
+- `POST /api/stripe/webhook` - Stripe webhook processing with signature and duplicate-event validation.
 - `POST /api/agent/chat` - chat response, using OpenRouter when configured and mock fallback otherwise.
 - `GET /api/agent/config` - starter agent configuration.
 - `POST /api/agent/behavior/decide` - safe mock-mode Behavior Director decision endpoint.
@@ -28,6 +33,7 @@ This document captures the current implementation baseline before Phase 2 behavi
 - `GET /api/agent/stream` - mock SSE event stream.
 - `GET /api/admin/config` - runtime config summary.
 - `GET /api/admin/budget` - read-only in-memory budget status and config.
+- `GET /api/admin/ops` - commercial operations summary.
 - `GET/POST /api/admin/features` - feature flag API.
 - `GET/POST /api/admin/keys` - API key metadata flow.
 - `GET /api/admin/logs` - in-memory logs.
@@ -49,3 +55,4 @@ This document captures the current implementation baseline before Phase 2 behavi
 - Event validation recognizes the `behavior.*` event namespace, but no new runtime behavior emits those events yet.
 - `decideBehavior` produces server-side `DirectorDecision` and `BehaviorPlan` objects in mock mode. It never calls an LLM provider; it only returns free visual/template plans for callers to inspect.
 - Chat provider calls are guarded by the in-memory budget manager. OpenRouter requests require budget approval and record token usage after a successful provider response; budget-blocked chats degrade to mock responses.
+- Commercialized chat provider calls now require wallet authorization when `DATABASE_URL` and `OPENROUTER_API_KEY` are configured. The old in-memory budget API remains as a legacy/development status surface.

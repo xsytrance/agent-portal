@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WalletTransactionType {
+  credit_purchase
+  usage_deduction
+  admin_adjustment
+  refund
+  promotional_credit
+}
+
+enum ProviderFamily {
+  openai
+  anthropic
+  google
+  other
+}
+
+enum ProviderRequestStatus {
+  authorized
+  completed
+  blocked
+  failed
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("user")
+  isGuest       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  wallet         UserWallet?
+  walletTxns     WalletTransaction[]
+  chatSessions   ChatSession[]
+  usageEvents    UsageEvent[]
+  providerLogs   ProviderRequestLog[]
+  dailySpendCaps UserDailySpend[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model UserWallet {
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  balanceMicrocredits        BigInt   @default(0)
+  lifetimePurchasedMicrocredits BigInt @default(0)
+  lifetimeUsedMicrocredits   BigInt   @default(0)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("user_wallets")
+}
+
+model WalletTransaction {
+  id                       String                @id @default(cuid())
+  walletId                 String
+  userId                   String
+  type                     WalletTransactionType
+  amountMicrocredits       BigInt
+  balanceAfterMicrocredits BigInt
+  idempotencyKey           String?               @unique
+  stripeCheckoutSessionId  String?
+  stripePaymentIntentId    String?
+  providerRequestId        String?
+  description              String?
+  metadata                 Json?
+  createdAt                DateTime              @default(now())
+
+  wallet UserWallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([type, createdAt])
+  @@map("wallet_transactions")
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  userId    String
+  agentId   String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageEvents UsageEvent[]
+}
+
+model UsageEvent {
+  id                    String   @id @default(cuid())
+  userId                String
+  chatSessionId         String?
+  providerRequestId     String?
+  agentId               String
+  model                 String
+  promptTokens          Int      @default(0)
+  completionTokens      Int      @default(0)
+  estimatedMicrocredits BigInt
+  actualMicrocredits    BigInt
+  createdAt             DateTime @default(now())
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chatSession     ChatSession?        @relation(fields: [chatSessionId], references: [id], onDelete: SetNull)
+  providerRequest ProviderRequestLog? @relation(fields: [providerRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([model, createdAt])
+}
+
+model ProviderRequestLog {
+  id                         String                @id @default(cuid())
+  userId                     String
+  agentId                    String
+  provider                   String                @default("openrouter")
+  providerFamily             ProviderFamily
+  model                      String
+  status                     ProviderRequestStatus
+  estimatedPromptTokens      Int
+  estimatedCompletionTokens  Int
+  actualPromptTokens         Int?
+  actualCompletionTokens     Int?
+  estimatedCostMicrocredits  BigInt
+  actualCostMicrocredits     BigInt?
+  markupMultiplierBps        Int
+  blockedReason              String?
+  errorMessage               String?
+  requestId                  String?
+  createdAt                  DateTime              @default(now())
+  completedAt                DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  usageEvents UsageEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([model, createdAt])
+}
+
+model StripeWebhookEvent {
+  id            String   @id @default(cuid())
+  stripeEventId String   @unique
+  type          String
+  processedAt   DateTime @default(now())
+  payload       Json
+}
+
+model UserDailySpend {
+  id                   String   @id @default(cuid())
+  userId               String
+  spendDate            DateTime
+  spentMicrocredits    BigInt   @default(0)
+  requestCount         Int      @default(0)
+  blockedRequestCount  Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, spendDate])
+  @@index([spendDate])
+}
