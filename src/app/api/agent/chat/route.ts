@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { getOpenRouterKey, getOpenRouterModel } from '@/app/lib/config/serverConfig';
 import { MockProvider, registerProvider } from '@/app/lib/providers/providerAdapter';
 import { OpenRouterProvider } from '@/app/lib/providers/openRouterProvider';
-import { info, error } from '@/app/lib/logger';
+import { estimateChatTokens, classifyChatCost } from '@/app/lib/budget/costTiers';
+import { assessBudgetForAction, recordUsage } from '@/app/lib/budget/budgetManager';
+import { info, error, warn } from '@/app/lib/logger';
 
 const mockProvider = new MockProvider();
 registerProvider(mockProvider);
@@ -34,6 +36,21 @@ function createMockResponse(message: string, agentId: string): { response: strin
   };
 }
 
+function createBudgetBlockedResponse(message: string, agentId: string, reason: string): {
+  response: string;
+  mock: true;
+  budgetBlocked: true;
+  reason: string;
+} {
+  const fallback = createMockResponse(message, agentId);
+  return {
+    ...fallback,
+    response: `${fallback.response} Budget guardrail active: ${reason}`,
+    budgetBlocked: true,
+    reason,
+  };
+}
+
 function isChatHistoryEntry(entry: unknown): entry is ChatHistoryEntry {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
   const raw = entry as Record<string, unknown>;
@@ -47,7 +64,7 @@ function sanitizeHistory(history: unknown): ChatHistoryEntry[] | undefined {
 }
 
 export async function POST(request: Request) {
-  let body: { message?: string; agentId?: string; history?: unknown };
+  let body: { message?: string; agentId?: string; history?: unknown; sessionId?: string };
 
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON body', mock: false }, { status: 400 });
@@ -58,16 +75,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'message is required and must be a string', mock: false }, { status: 400 });
   }
   const history = sanitizeHistory(body.history);
+  const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim()
+    ? body.sessionId.trim()
+    : 'default';
 
   await ensureOpenRouterProvider();
 
   const key = await getOpenRouterKey();
-  if (key && key.startsWith('sk-or-')) {
+  const hasProviderKey = !!key && key.startsWith('sk-or-');
+  const costTier = classifyChatCost(hasProviderKey);
+  const estimatedTokens = estimateChatTokens(message, history);
+
+  if (hasProviderKey) {
+    const budgetDecision = await assessBudgetForAction(sessionId, estimatedTokens, costTier);
+    if (!budgetDecision.allowed) {
+      await warn('chat-route', 'Serving mock response because budget blocked provider call', {
+        route: '/api/agent/chat',
+        details: {
+          agentId,
+          sessionId,
+          reason: budgetDecision.reason,
+          status: budgetDecision.status,
+          estimatedTokens,
+        },
+      });
+      return NextResponse.json({
+        ...createBudgetBlockedResponse(message, agentId, budgetDecision.reason),
+        budget: {
+          status: budgetDecision.status,
+          estimatedTokens,
+          remainingTokens: budgetDecision.snapshot.remainingTokens,
+        },
+      });
+    }
+
     try {
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
         const result = await orProvider.chat({ message, agentId, history });
+        await recordUsage({
+          sessionId,
+          agentId,
+          action: 'chat',
+          costTier,
+          promptTokens: result.usage?.prompt ?? estimatedTokens,
+          completionTokens: result.usage?.completion ?? 0,
+          model: result.model,
+        });
         return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false });
       }
     } catch (err) {
@@ -76,6 +131,12 @@ export async function POST(request: Request) {
     }
   }
 
-  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key } });
-  return NextResponse.json(createMockResponse(message, agentId));
+  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId } });
+  return NextResponse.json({
+    ...createMockResponse(message, agentId),
+    budget: {
+      costTier,
+      estimatedTokens,
+    },
+  });
 }

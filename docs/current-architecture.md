@@ -27,6 +27,7 @@ This document captures the current implementation baseline before Phase 2 behavi
 - `GET/POST /api/agent/events` - in-memory event store access with validation.
 - `GET /api/agent/stream` - mock SSE event stream.
 - `GET /api/admin/config` - runtime config summary.
+- `GET /api/admin/budget` - read-only in-memory budget status and config.
 - `GET/POST /api/admin/features` - feature flag API.
 - `GET/POST /api/admin/keys` - API key metadata flow.
 - `GET /api/admin/logs` - in-memory logs.
@@ -47,3 +48,4 @@ This document captures the current implementation baseline before Phase 2 behavi
 - Input signal validation lives in `src/app/lib/signals/signalValidator.ts`.
 - Event validation recognizes the `behavior.*` event namespace, but no new runtime behavior emits those events yet.
 - `decideBehavior` produces server-side `DirectorDecision` and `BehaviorPlan` objects in mock mode. It never calls an LLM provider; it only returns free visual/template plans for callers to inspect.
+- Chat provider calls are guarded by the in-memory budget manager. OpenRouter requests require budget approval and record token usage after a successful provider response; budget-blocked chats degrade to mock responses.
