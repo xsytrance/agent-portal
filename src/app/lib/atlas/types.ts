@@ -33,6 +33,11 @@ export interface EyeBehavior {
   pupilDilation: number;      // 0.8-1.3
   eyelidOpenness: number;     // 0.3-1.0
   thinkingWobble: boolean;    // subtle eye wobble when thinking
+  cognitionCue: 'none' | 'processing' | 'recalling';  // brief cognition flash
+  breathPhase: number;        // 0-1, sine-wave cycle position
+  breathRate: number;         // ms per full breath cycle
+  partialAttention: boolean;  // when true, eye drifts to secondary target
+  secondaryTarget: { x: number; y: number } | null;  // drift target when partially attentive
 }
 
 export interface ParticleMood {
@@ -75,4 +80,8 @@ export interface AtlasConfig {
   attentionEventCost: number;
   attentionThresholdLow: number;
   attentionThresholdCritical: number;
+  attentionInertiaRate: number;      // lerp factor for smooth attention transitions
+  partialAttentionChance: number;    // probability per tick of partial attention while OBSERVING
+  cognitionCueDurationMs: number;    // how long a cognition cue lasts
+  cognitionCueIntervalMs: number;    // minimum time between cognition cues
 }

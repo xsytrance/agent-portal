@@ -16,6 +16,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
   const reducedMotion = useReducedMotion();
   const eyeRef = useRef<HTMLDivElement>(null);
   const pupilRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [emotion] = useState<'neutral' | 'happy' | 'curious' | 'surprised' | 'sleepy'>('neutral');
   const [isClient, setIsClient] = useState<boolean>(false);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -23,6 +24,16 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
   const rafRef = useRef<number | null>(null);
   const [blink, setBlink] = useState(false);
   const lastBlinkRef = useRef(Date.now() + 3000);
+  const breathStartRef = useRef(Date.now());
+
+  // ── Emotional polish refs (updated in raf, no re-renders) ──
+  const pupilScaleRef = useRef(1);
+  const dartRef = useRef({ x: 0, y: 0, active: false, startTime: 0 });
+  const currentEyelidRef = useRef(0);
+
+  // Read eye behavior + silence mode from atlas brain
+  const eyeBehavior = atlasBrain?.eyeBehavior;
+  const silenceMode = atlasBrain?.silenceMode;
 
   useEffect(() => {
     setIsClient(true);
@@ -39,7 +50,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
     window.addEventListener('mousemove', onMouseMove);
 
     const animate = () => {
-      if (!eyeRef.current || !pupilRef.current) {
+      if (!eyeRef.current || !pupilRef.current || !svgRef.current) {
         rafRef.current = requestAnimationFrame(animate);
         return;
       }
@@ -48,26 +59,126 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       const eyeCx = eyeRect.left + eyeRect.width / 2;
       const eyeCy = eyeRect.top + eyeRect.height / 2;
 
-      const dx = mouseRef.current.x - eyeCx;
-      const dy = mouseRef.current.y - eyeCy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const maxDist = 10;
+      const trackingSpeed = eyeBehavior?.trackingSpeed ?? 0.08;
+      const movementRange = eyeBehavior?.movementRange ?? 10;
 
-      const targetX = dist > 0 ? (dx / dist) * Math.min(dist * 0.05, maxDist) : 0;
-      const targetY = dist > 0 ? (dy / dist) * Math.min(dist * 0.05, maxDist) : 0;
+      // ── 3. Partial attention: drift toward secondary target ──
+      const partialAttention = (eyeBehavior as any)?.partialAttention;
+      const secondaryTarget = (eyeBehavior as any)?.secondaryTarget;
+      let targetX = 0;
+      let targetY = 0;
+
+      if (partialAttention && secondaryTarget) {
+        const sdx = (secondaryTarget as { x: number; y: number }).x - eyeCx;
+        const sdy = (secondaryTarget as { x: number; y: number }).y - eyeCy;
+        const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+        targetX = sdist > 0 ? (sdx / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
+        targetY = sdist > 0 ? (sdy / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
+      } else {
+        const dx = mouseRef.current.x - eyeCx;
+        const dy = mouseRef.current.y - eyeCy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        targetX = dist > 0 ? (dx / dist) * Math.min(dist * 0.05, movementRange) : 0;
+        targetY = dist > 0 ? (dy / dist) * Math.min(dist * 0.05, movementRange) : 0;
+      }
 
       pupilPos.current = {
-        x: lerp(pupilPos.current.x, targetX, 0.08),
-        y: lerp(pupilPos.current.y, targetY, 0.08),
+        x: lerp(pupilPos.current.x, targetX, trackingSpeed),
+        y: lerp(pupilPos.current.y, targetY, trackingSpeed),
       };
 
-      pupilRef.current.style.transform = `translate(${pupilPos.current.x}px, ${pupilPos.current.y}px)`;
+      // ── 6. THINKING mode: occasional pupil dart ──
+      let dartX = 0;
+      let dartY = 0;
+      if (eyeBehavior?.thinkingWobble && !dartRef.current.active) {
+        // Occasional dart (~every 1.5-3.5s)
+        if (Math.random() < 0.008) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 4 + Math.random() * 5;
+          dartRef.current = {
+            x: Math.cos(angle) * distance,
+            y: Math.sin(angle) * distance,
+            active: true,
+            startTime: Date.now(),
+          };
+        }
+      }
+      if (dartRef.current.active) {
+        const dartElapsed = Date.now() - dartRef.current.startTime;
+        if (dartElapsed > 250) {
+          dartRef.current.active = false;
+          dartRef.current.x = 0;
+          dartRef.current.y = 0;
+        } else {
+          // Quick out-and-back curve
+          const dartT = dartElapsed / 250;
+          const envelope = Math.sin(dartT * Math.PI); // 0→1→0
+          dartX = dartRef.current.x * envelope;
+          dartY = dartRef.current.y * envelope;
+        }
+      }
 
-      // Random blink
+      // ── 6. THINKING mode: very subtle wobble (±1px) ──
+      let wobbleX = 0;
+      let wobbleY = 0;
+      if (eyeBehavior?.thinkingWobble) {
+        const wt = Date.now() / 1000;
+        wobbleX = Math.sin(wt * 3) * 0.6;
+        wobbleY = Math.cos(wt * 2.3) * 0.5;
+      }
+
+      const finalX = pupilPos.current.x + wobbleX + dartX;
+      const finalY = pupilPos.current.y + wobbleY + dartY;
+      pupilRef.current.style.transform = `translate(${finalX}px, ${finalY}px)`;
+
+      // ── 4. Cognition cues: subtle pupil dilation/constriction ──
+      const cue = (eyeBehavior as any)?.cognitionCue;
+      const baseDilation = eyeBehavior?.pupilDilation ?? 1;
+      let targetPupilScale = baseDilation;
+
+      if (cue === 'processing') {
+        targetPupilScale = baseDilation * 1.08;
+      } else if (cue === 'recalling') {
+        targetPupilScale = baseDilation * 0.95;
+      }
+
+      pupilScaleRef.current = lerp(pupilScaleRef.current, targetPupilScale, 0.12);
+
+      // Apply pupil size directly (no re-render)
+      const basePupilSize = 12;
+      const currentPupilSize = basePupilSize * pupilScaleRef.current;
+      pupilRef.current.style.width = `${currentPupilSize}px`;
+      pupilRef.current.style.height = `${currentPupilSize}px`;
+      pupilRef.current.style.marginLeft = `${-currentPupilSize / 2}px`;
+      pupilRef.current.style.marginTop = `${-currentPupilSize / 2}px`;
+
+      // ── 2. Breathing rhythm: barely perceptible scale pulse ──
+      const breathPeriod = silenceMode === 'RESTING' ? 4000 : 2500;
+      const breathPhase = ((Date.now() - breathStartRef.current) % breathPeriod) / breathPeriod;
+      const breathScale = 1 + Math.sin(breathPhase * Math.PI * 2) * 0.03;
+
+      const irisTransform = emotion === 'surprised'
+        ? 'scale(0.8)'
+        : emotion === 'happy'
+          ? 'scale(1.05)'
+          : 'scale(1)';
+      svgRef.current.style.transform = `${irisTransform} scale(${breathScale})`;
+
+      // ── 5. RESTING mode: half-lidded eyelid (smooth lerp) ──
+      const targetEyelid = silenceMode === 'RESTING'
+        ? (eyeBehavior?.eyelidOpenness ?? 0.65)
+        : emotion === 'sleepy'
+          ? 0.55
+          : 0;
+      currentEyelidRef.current = lerp(currentEyelidRef.current, targetEyelid, 0.03);
+
+      // ── 7. Blink rate wiring: use eyeBehavior rates ──
       const now = Date.now();
       if (now > lastBlinkRef.current) {
         setBlink(true);
-        lastBlinkRef.current = now + 3000 + Math.random() * 3000;
+        const blinkMin = eyeBehavior?.blinkRateMin ?? 3000;
+        const blinkMax = eyeBehavior?.blinkRateMax ?? 6000;
+        lastBlinkRef.current = now + blinkMin + Math.random() * (blinkMax - blinkMin);
         setTimeout(() => setBlink(false), 150);
       }
 
@@ -80,7 +191,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       window.removeEventListener('mousemove', onMouseMove);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [reducedMotion, isClient]);
+  }, [reducedMotion, isClient, eyeBehavior, silenceMode, emotion]);
 
   const handleClick = useCallback(() => {
     setChatOpen(true);
@@ -89,11 +200,12 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
   if (!isClient) return null;
 
   const eyeSize = typeof window !== 'undefined' && window.innerWidth < 640 ? mobileSize : size;
-  const pupilSize = 12;
   const highlightSize = 4;
 
-  const irisTransform = emotion === 'surprised' ? 'scale(0.8)' : emotion === 'happy' ? 'scale(1.05)' : 'scale(1)';
   const eyeTransform = emotion === 'surprised' ? 'scale(1.2)' : 'scale(1)';
+
+  // Eyelid height derived from animated ref (rounded for display)
+  const eyelidDisplayPct = Math.round(currentEyelidRef.current * 100);
 
   return (
     <>
@@ -144,12 +256,13 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       >
         {/* Sclera */}
         <svg
+          ref={svgRef}
           width={eyeSize}
           height={eyeSize}
           viewBox="0 0 100 100"
           style={{
-            transform: blink ? 'scaleY(0.1)' : 'scaleY(1)',
-            transition: blink ? 'transform 0.05s' : 'transform 0.15s',
+            transformOrigin: '50% 50%',
+            transition: 'transform 0.3s ease',
           }}
         >
           <defs>
@@ -170,26 +283,38 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
             </radialGradient>
           </defs>
 
-          <ellipse cx="50" cy="50" rx="42" ry="35" fill="#FFF" filter="url(#eyeShadow)" />
+          <ellipse
+            cx="50"
+            cy="50"
+            rx="42"
+            ry="35"
+            fill="#FFF"
+            filter="url(#eyeShadow)"
+            style={{
+              transform: blink ? 'scaleY(0.1)' : 'scaleY(1)',
+              transition: blink ? 'transform 0.05s' : 'transform 0.15s',
+              transformOrigin: '50px 50px',
+            }}
+          />
 
           {/* Iris */}
-          <g style={{ transform: irisTransform, transformOrigin: '50px 50px', transition: 'transform 0.4s ease' }}>
+          <g style={{ transformOrigin: '50px 50px', transition: 'transform 0.4s ease' }}>
             <circle cx="50" cy="50" r="22" fill="url(#irisGrad)" />
             <circle cx="50" cy="50" r="18" fill={activeAgent.primaryColor} opacity="0.6" />
           </g>
         </svg>
 
-        {/* Pupil (follows cursor) */}
+        {/* Pupil (follows cursor + emotional polish) */}
         <div
           ref={pupilRef}
           style={{
             position: 'absolute',
             top: '50%',
             left: '50%',
-            width: pupilSize,
-            height: pupilSize,
-            marginLeft: -pupilSize / 2,
-            marginTop: -pupilSize / 2,
+            width: 12,
+            height: 12,
+            marginLeft: -6,
+            marginTop: -6,
             borderRadius: '50%',
             backgroundColor: '#1A1A2E',
             transition: 'width 0.3s, height 0.3s',
@@ -212,19 +337,20 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
           }}
         />
 
-        {/* Eyelid (for sleepy emotion) */}
-        {emotion === 'sleepy' && (
+        {/* ── 5. RESTING mode: dynamic half-lidded overlay ── */}
+        {eyelidDisplayPct > 1 && (
           <div
             style={{
               position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
-              height: '55%',
+              height: `${eyelidDisplayPct}%`,
               borderRadius: '50% 50% 0 0',
               backgroundColor: 'rgba(26, 26, 46, 0.4)',
               zIndex: 4,
               pointerEvents: 'none',
+              transition: 'height 0.1s linear',
             }}
           />
         )}
@@ -247,7 +373,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
           </svg>
         )}
 
-        {/* Thinking ring */}
+        {/* ── 6. Thinking ring: more subtle ── */}
         {isThinking && (
           <div
             style={{
@@ -258,7 +384,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
               bottom: '-8px',
               borderRadius: '50%',
               border: `2px solid ${activeAgent.primaryColor}`,
-              opacity: 0.6,
+              opacity: 0.4,
               animation: 'ringPulse 1.5s ease-in-out infinite',
               pointerEvents: 'none',
             }}

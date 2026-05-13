@@ -17,12 +17,25 @@ interface Particle {
   phase: number;
 }
 
+interface MoodParams {
+  speed: number;
+  count: number;
+  connectionOpacity: number;
+  driftAmplitude: number;
+}
+
 interface ParticleBackgroundProps {
   particleCount?: number;
   className?: string;
   style?: React.CSSProperties;
   atlasBrain?: AtlasBrainAPI | null;
 }
+
+const MOOD_MAP: Record<string, MoodParams> = {
+  RESTING: { speed: 0.3, count: 20, connectionOpacity: 0.05, driftAmplitude: 5 },
+  THINKING: { speed: 0.5, count: 25, connectionOpacity: 0.08, driftAmplitude: 8 },
+  OBSERVING: { speed: 0.8, count: 35, connectionOpacity: 0.1, driftAmplitude: 15 },
+};
 
 export default function ParticleBackground({
   particleCount,
@@ -42,6 +55,13 @@ export default function ParticleBackground({
 
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
+  // ── Mood-based particle params (smoothly lerped) ──
+  const silenceMode = atlasBrain?.silenceMode ?? 'OBSERVING';
+  const density = atlasBrain?.state?.density ?? 'medium';
+
+  const targetMoodRef = useRef<MoodParams>(MOOD_MAP.OBSERVING);
+  const currentMoodRef = useRef<MoodParams>({ ...MOOD_MAP.OBSERVING });
+
   useEffect(() => {
     setIsMobile(window.innerWidth < 640);
     const handler = () => setIsMobile(window.innerWidth < 640);
@@ -49,7 +69,7 @@ export default function ParticleBackground({
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const count = particleCount ?? (isMobile ? 20 : 45);
+  const baseCount = particleCount ?? (isMobile ? 20 : 45);
 
   useEffect(() => {
     if (activeAgent.primaryColor !== targetColorRef.current) {
@@ -57,6 +77,24 @@ export default function ParticleBackground({
       lastColorUpdateRef.current = Date.now();
     }
   }, [activeAgent.primaryColor]);
+
+  // Update target mood params when silenceMode or density changes
+  useEffect(() => {
+    const mood = MOOD_MAP[silenceMode] ?? MOOD_MAP.OBSERVING;
+    let targetCount = mood.count;
+
+    // Apply density override
+    if (density === 'ambient') targetCount = Math.floor(targetCount * 0.5);
+    else if (density === 'low') targetCount = Math.floor(targetCount * 0.75);
+
+    // Clamp to baseCount as upper bound
+    targetCount = Math.min(targetCount, baseCount);
+
+    targetMoodRef.current = {
+      ...mood,
+      count: targetCount,
+    };
+  }, [silenceMode, density, baseCount]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -77,7 +115,7 @@ export default function ParticleBackground({
     window.addEventListener('mousemove', onMouseMove);
 
     // Init particles
-    particlesRef.current = Array.from({ length: count }, () => {
+    particlesRef.current = Array.from({ length: baseCount }, () => {
       const x = Math.random() * canvas.width;
       const y = Math.random() * canvas.height;
       return {
@@ -86,7 +124,7 @@ export default function ParticleBackground({
         baseX: x,
         baseY: y,
         vx: 0,
-        vy: -(0.2 + Math.random() * 0.6),
+        vy: -(0.25 + Math.random() * 0.55), // base vy; mood speed applied in loop
         radius: 2 + Math.random() * 3,
         opacity: 0.3 + Math.random() * 0.3,
         phase: Math.random() * Math.PI * 2,
@@ -109,6 +147,8 @@ export default function ParticleBackground({
       return `rgb(${r},${g},${b})`;
     };
 
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
     const animate = () => {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -121,18 +161,60 @@ export default function ParticleBackground({
       const baseRgb = hexToRgb(colorRef.current);
       const glowRgb = hexToRgb(activeAgent.glowColor);
 
+      // ── Smoothly lerp mood params over ~2s ──
+      const moodLerpSpeed = 0.015; // ~2s to converge
+      currentMoodRef.current.speed = lerp(currentMoodRef.current.speed, targetMoodRef.current.speed, moodLerpSpeed);
+      currentMoodRef.current.connectionOpacity = lerp(
+        currentMoodRef.current.connectionOpacity,
+        targetMoodRef.current.connectionOpacity,
+        moodLerpSpeed,
+      );
+      currentMoodRef.current.driftAmplitude = lerp(
+        currentMoodRef.current.driftAmplitude,
+        targetMoodRef.current.driftAmplitude,
+        moodLerpSpeed,
+      );
+
+      // Handle particle count changes (add or remove gradually)
+      const targetCount = targetMoodRef.current.count;
+      const currentCount = particlesRef.current.length;
+      if (currentCount < targetCount) {
+        // Add particles
+        for (let i = currentCount; i < targetCount; i++) {
+          const x = Math.random() * canvas.width;
+          const y = canvas.height + 10 + Math.random() * 50;
+          particlesRef.current.push({
+            x,
+            y,
+            baseX: x,
+            baseY: y,
+            vx: 0,
+            vy: -(0.25 + Math.random() * 0.55), // base vy; mood speed applied in loop
+            radius: 2 + Math.random() * 3,
+            opacity: 0.3 + Math.random() * 0.3,
+            phase: Math.random() * Math.PI * 2,
+          });
+        }
+      } else if (currentCount > targetCount) {
+        // Remove particles (trim from end, let them fade out naturally)
+        particlesRef.current = particlesRef.current.slice(0, targetCount);
+      }
+
+      const cm = currentMoodRef.current;
+
       if (!reducedMotion) {
         particlesRef.current.forEach((p) => {
           const time = Date.now() / 1000;
-          const sineX = Math.sin(time * 0.5 + p.phase) * (30 + Math.sin(p.phase) * 30);
+          const sineX = Math.sin(time * 0.5 + p.phase) * (30 + Math.sin(p.phase) * cm.driftAmplitude);
 
+          // Apply lerped speed multiplier to base velocity (no re-randomization)
           p.x += p.vx;
-          p.y += p.vy;
+          p.y += p.vy * cm.speed * 1.5;
 
           // Sine-wave drift
           p.x = p.baseX + sineX * (time * 0.1);
 
-          // Cursor repulsion
+          // Cursor repulsion (untouched)
           const dx = p.x - mouseRef.current.x;
           const dy = p.y - mouseRef.current.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -153,7 +235,7 @@ export default function ParticleBackground({
         });
       }
 
-      // Draw connections
+      // Draw connections (using lerped opacity)
       const connectionDist = 150;
       for (let i = 0; i < particlesRef.current.length; i++) {
         for (let j = i + 1; j < particlesRef.current.length; j++) {
@@ -163,7 +245,7 @@ export default function ParticleBackground({
           const dy = a.y - b.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < connectionDist) {
-            const alpha = (1 - dist / connectionDist) * 0.15;
+            const alpha = (1 - dist / connectionDist) * cm.connectionOpacity;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
@@ -192,7 +274,7 @@ export default function ParticleBackground({
       window.removeEventListener('mousemove', onMouseMove);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [count, reducedMotion, activeAgent.glowColor, activeAgent.primaryColor]);
+  }, [baseCount, reducedMotion, activeAgent.glowColor, activeAgent.primaryColor]);
 
   return (
     <canvas

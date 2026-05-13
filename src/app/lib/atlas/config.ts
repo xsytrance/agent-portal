@@ -15,6 +15,10 @@ export const DEFAULT_ATLAS_CONFIG: AtlasConfig = {
   attentionEventCost: 8,
   attentionThresholdLow: 50,
   attentionThresholdCritical: 25,
+  attentionInertiaRate: 0.08,
+  partialAttentionChance: 0.15,
+  cognitionCueDurationMs: 400,
+  cognitionCueIntervalMs: 6000,
 };
 
 export function getConfig(overrides?: Partial<AtlasConfig>): AtlasConfig {
