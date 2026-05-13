@@ -38,6 +38,8 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [typedText, setTypedText] = useState('');
+  const [chatSessionId, setChatSessionId] = useState<string | undefined>();
+  const [sendError, setSendError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const convoIndex = useRef(0);
   const isAutoPlaying = useRef(false);
@@ -122,33 +124,57 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
     };
   }, [chatOpen, setIsThinking]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
+    const outbound = input.trim();
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: outbound,
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    setSendError(null);
+    setTyping(true);
+    setIsThinking(true);
 
-    // Mock agent response
-    setTimeout(() => {
-      setTyping(true);
-      setIsThinking(true);
+    try {
+      const history = messages
+        .filter((msg) => !msg.isChart)
+        .slice(-10)
+        .map((msg) => ({ role: msg.role === 'user' ? 'user' as const : 'assistant' as const, content: msg.content }));
+
+      const res = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: outbound,
+          agentId: activeAgent.id,
+          history,
+          chatSessionId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.response) throw new Error(data.error || `Chat failed with HTTP ${res.status}`);
+      if (data.chatSessionId) setChatSessionId(data.chatSessionId);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString() + Math.random(),
+        role: 'agent',
+        content: data.budgetBlocked ? `${data.response}` : data.response,
+      }]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to send message';
+      setSendError(message);
       const responses = activeAgent.chatResponses;
-      const response = responses[Math.floor(Math.random() * responses.length)];
-
-      setTimeout(() => {
-        setTyping(false);
-        setIsThinking(false);
-        setMessages((prev) => [...prev, {
-          id: Date.now().toString() + Math.random(),
-          role: 'agent',
-          content: response,
-        }]);
-      }, 1500);
-    }, 500);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString() + Math.random(),
+        role: 'agent',
+        content: responses[Math.floor(Math.random() * responses.length)],
+      }]);
+    } finally {
+      setTyping(false);
+      setIsThinking(false);
+    }
   };
 
   return (
@@ -334,7 +360,12 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
             </div>
 
             {/* Input */}
-            <div className="px-5 py-4 flex items-center gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="relative px-5 py-4 flex items-center gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              {sendError && (
+                <div className="absolute bottom-[76px] left-5 right-5 rounded-xl px-3 py-2" style={{ backgroundColor: 'rgba(239,68,68,0.16)', color: '#FCA5A5', fontSize: '0.75rem' }}>
+                  Chat service fallback: {sendError}
+                </div>
+              )}
               <input
                 type="text"
                 value={input}

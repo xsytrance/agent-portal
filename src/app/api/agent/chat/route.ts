@@ -9,6 +9,7 @@ import {
   markProviderCallFailed,
   reconcileProviderCall,
 } from '@/app/lib/providers/commercialOpenRouter';
+import { persistChatExchange } from '@/app/lib/chat/chatPersistence';
 import { info, error, warn } from '@/app/lib/logger';
 
 const mockProvider = new MockProvider();
@@ -69,7 +70,7 @@ function sanitizeHistory(history: unknown): ChatHistoryEntry[] | undefined {
 }
 
 export async function POST(request: Request) {
-  let body: { message?: string; agentId?: string; history?: unknown; sessionId?: string; model?: string };
+  let body: { message?: string; agentId?: string; history?: unknown; sessionId?: string; chatSessionId?: string; model?: string };
 
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON body', mock: false }, { status: 400 });
@@ -110,14 +111,24 @@ export async function POST(request: Request) {
           estimatedMicrocredits: authorization.estimatedMicrocredits.toString(),
         },
       });
+      const blocked = createBudgetBlockedResponse(message, agentId, authorization.reason ?? 'Provider call not authorized.');
+      const chatSessionId = await persistChatExchange({
+        userId: user.userId,
+        chatSessionId: body.chatSessionId,
+        agentId,
+        userMessage: message,
+        assistantMessage: blocked.response,
+        metadata: { mock: true, budgetBlocked: true, reason: blocked.reason },
+      });
       return NextResponse.json({
-        ...createBudgetBlockedResponse(message, agentId, authorization.reason ?? 'Provider call not authorized.'),
+        ...blocked,
         budget: {
           status: 'blocked',
           estimatedTokens,
           estimatedMicrocredits: authorization.estimatedMicrocredits.toString(),
         },
         user,
+        chatSessionId,
       });
     }
 
@@ -137,7 +148,15 @@ export async function POST(request: Request) {
           completionTokens: result.usage?.completion ?? 0,
           model: result.model,
         });
-        return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false, user });
+        const chatSessionId = await persistChatExchange({
+          userId: user.userId,
+          chatSessionId: body.chatSessionId,
+          agentId,
+          userMessage: message,
+          assistantMessage: result.content,
+          metadata: { model: result.model, mock: false },
+        });
+        return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false, user, chatSessionId });
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -147,12 +166,22 @@ export async function POST(request: Request) {
   }
 
   await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId, userId: user.userId } });
+  const mock = createMockResponse(message, agentId);
+  const chatSessionId = await persistChatExchange({
+    userId: user.userId,
+    chatSessionId: body.chatSessionId,
+    agentId,
+    userMessage: message,
+    assistantMessage: mock.response,
+    metadata: { mock: true, costTier },
+  });
   return NextResponse.json({
-    ...createMockResponse(message, agentId),
+    ...mock,
     budget: {
       costTier,
       estimatedTokens,
     },
     user,
+    chatSessionId,
   });
 }

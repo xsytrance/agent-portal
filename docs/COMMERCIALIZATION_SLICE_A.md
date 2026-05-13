@@ -143,11 +143,19 @@ Webhook handling validates signatures, stores processed event IDs, and credits w
 
 ## Recommended Slice B Roadmap
 
-1. Production auth UX: email magic link or OAuth, account page, sign-out, wallet balance badge.
-2. Full wallet purchase UI with Stripe Checkout buttons and post-checkout balance refresh.
-3. Audited admin adjustments and refunds UI.
-4. Persistent chat sessions and message history linked to `ChatSession`.
-5. Shared rate-limit storage for multi-instance deploys.
-6. Provider health checks and model pricing sync process.
-7. CI pipeline: lint, build, Prisma validate, migration deploy dry-run.
-8. Production observability: structured JSON logs, provider error dashboards, wallet ledger alerts.
+1. Production auth UX: email magic link or OAuth, account page, sign-out.
+2. Shared rate-limit storage for multi-instance deploys.
+3. Provider health checks and model pricing sync process.
+4. CI pipeline: lint, build, Prisma validate, migration deploy dry-run.
+5. Production observability: structured JSON logs, provider error dashboards, wallet ledger alerts.
+
+## Slice B Progress
+
+Implemented after Slice A:
+
+- Navbar wallet widget with guest/account state, balance display, refresh, and `$5/$10/$20/$50` purchase buttons.
+- Stripe Checkout UI path with graceful sandbox/configuration errors.
+- Chat panel now sends user messages through `/api/agent/chat`, so wallet/provider guardrails are on the product path rather than only server-side smoke tests.
+- `ChatMessage` persistence model and light chat exchange persistence when PostgreSQL is configured.
+- Admin wallet adjustment endpoint: `POST /api/admin/wallet/adjust`.
+- Commercial Ops admin form for `promotional_credit`, `refund`, and `admin_adjustment`, disabled clearly in no-database mode.

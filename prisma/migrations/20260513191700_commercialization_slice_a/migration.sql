@@ -98,6 +98,18 @@ CREATE TABLE "UsageEvent" (
     CONSTRAINT "UsageEvent_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TABLE "ChatMessage" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "chatSessionId" TEXT NOT NULL,
+    "agentId" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ChatMessage_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE "ProviderRequestLog" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -154,6 +166,8 @@ CREATE INDEX "wallet_transactions_walletId_createdAt_idx" ON "wallet_transaction
 CREATE INDEX "wallet_transactions_type_createdAt_idx" ON "wallet_transactions"("type", "createdAt");
 CREATE INDEX "UsageEvent_userId_createdAt_idx" ON "UsageEvent"("userId", "createdAt");
 CREATE INDEX "UsageEvent_model_createdAt_idx" ON "UsageEvent"("model", "createdAt");
+CREATE INDEX "ChatMessage_userId_createdAt_idx" ON "ChatMessage"("userId", "createdAt");
+CREATE INDEX "ChatMessage_chatSessionId_createdAt_idx" ON "ChatMessage"("chatSessionId", "createdAt");
 CREATE INDEX "ProviderRequestLog_userId_createdAt_idx" ON "ProviderRequestLog"("userId", "createdAt");
 CREATE INDEX "ProviderRequestLog_status_createdAt_idx" ON "ProviderRequestLog"("status", "createdAt");
 CREATE INDEX "ProviderRequestLog_model_createdAt_idx" ON "ProviderRequestLog"("model", "createdAt");
@@ -170,5 +184,7 @@ ALTER TABLE "ChatSession" ADD CONSTRAINT "ChatSession_userId_fkey" FOREIGN KEY (
 ALTER TABLE "UsageEvent" ADD CONSTRAINT "UsageEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "UsageEvent" ADD CONSTRAINT "UsageEvent_chatSessionId_fkey" FOREIGN KEY ("chatSessionId") REFERENCES "ChatSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "UsageEvent" ADD CONSTRAINT "UsageEvent_providerRequestId_fkey" FOREIGN KEY ("providerRequestId") REFERENCES "ProviderRequestLog"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_chatSessionId_fkey" FOREIGN KEY ("chatSessionId") REFERENCES "ChatSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ProviderRequestLog" ADD CONSTRAINT "ProviderRequestLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "UserDailySpend" ADD CONSTRAINT "UserDailySpend_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

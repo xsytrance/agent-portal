@@ -47,6 +47,7 @@ model User {
   usageEvents    UsageEvent[]
   providerLogs   ProviderRequestLog[]
   dailySpendCaps UserDailySpend[]
+  chatMessages   ChatMessage[]
 }
 
 model Account {
@@ -134,6 +135,24 @@ model ChatSession {
 
   user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
   usageEvents UsageEvent[]
+  messages    ChatMessage[]
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  userId        String
+  chatSessionId String
+  agentId       String
+  role          String
+  content       String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chatSession ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([chatSessionId, createdAt])
 }
 
 model UsageEvent {
