@@ -35,6 +35,7 @@ model User {
   emailVerified DateTime?
   image         String?
   role          String    @default("user")
+  passwordHash  String?
   isGuest       Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

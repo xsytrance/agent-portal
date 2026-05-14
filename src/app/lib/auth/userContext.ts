@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import type { NextRequest } from 'next/server';
 import { authOptions } from './authOptions';
-import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
+import { isDatabaseConfigured } from '@/app/lib/db/prisma';
 
 export interface UserContext {
   userId: string;

@@ -176,3 +176,33 @@ Implemented after DB-connected verification:
 - Stripe checkout returns structured JSON errors when Stripe rejects session creation.
 
 Production note: paid wallet behavior should require a signed-in user until a signed server-issued guest token is implemented.
+
+## Slice C Progress
+
+Implemented customer onboarding/account UX:
+
+- Customer sign-up page: `/signup`.
+- Customer sign-in page: `/signin`.
+- Passwords are hashed with Node `scrypt`; raw passwords are not stored.
+- Account dropdown shows signed-in email/account state, wallet balance, wallet link, sign out, and admin link only for admin sessions.
+- Wallet page: `/wallet`.
+  - Shows balance.
+  - Shows transaction history.
+  - Shows `$5/$10/$20/$50` checkout buttons for signed-in paid-wallet users.
+  - Shows checkout success/cancel states.
+  - Explains that credits are prepaid usage credits, not unlimited subscription access.
+- Chat panel now shows a simple customer model selector using centralized OpenRouter allowlist labels:
+  - OpenAI / ChatGPT
+  - Claude
+  - Gemini
+- Chat panel surfaces whether the response is demo/template or paid wallet-backed, and shows friendly block reasons.
+- Signed-in chat sessions can appear on the wallet page as recent sessions.
+- Admin Ops now includes recent provider logs.
+
+Local auth setup:
+
+1. Set `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and `NEXT_PUBLIC_APP_URL`.
+2. Run migrations and seed.
+3. Visit `/signup` to create a customer account.
+4. Visit `/signin` to sign in.
+5. Admin access requires either an Auth.js session whose email is in `ADMIN_EMAILS`, or temporary Basic Auth when `ADMIN_BASIC_AUTH_ENABLED=true`.

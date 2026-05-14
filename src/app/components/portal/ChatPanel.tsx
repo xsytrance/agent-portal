@@ -12,6 +12,12 @@ interface Message {
   isChart?: boolean;
 }
 
+interface CustomerModel {
+  id: string;
+  label: string;
+  family: string;
+}
+
 const mockConversation: { role: 'agent' | 'user'; content: string; isChart?: boolean }[] = [
   { role: 'agent', content: "Hey! I'm your AI agent. I can generate charts, run simulations, and even repaint this whole page. Watch this —" },
   { role: 'agent', content: "chart", isChart: true },
@@ -40,6 +46,10 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   const [typedText, setTypedText] = useState('');
   const [chatSessionId, setChatSessionId] = useState<string | undefined>();
   const [sendError, setSendError] = useState<string | null>(null);
+  const [models, setModels] = useState<CustomerModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState('openai/gpt-4o-mini');
+  const [accountMode, setAccountMode] = useState<'guest' | 'paid' | 'unknown'>('unknown');
+  const [lastStatus, setLastStatus] = useState('Demo mode. Sign in and add credits for paid model access.');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const convoIndex = useRef(0);
   const isAutoPlaying = useRef(false);
@@ -51,6 +61,19 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, typedText]);
+
+  useEffect(() => {
+    fetch('/api/agent/models')
+      .then((res) => res.json())
+      .then((data) => {
+        const available = data.models || [];
+        setModels(available);
+        if (available[0]?.id) setSelectedModel(available[0].id);
+      })
+      .catch(() => {
+        setModels([]);
+      });
+  }, []);
 
   // Auto-play mock conversation when chat opens
   useEffect(() => {
@@ -152,11 +175,18 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
           agentId: activeAgent.id,
           history,
           chatSessionId,
+          model: selectedModel,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.response) throw new Error(data.error || `Chat failed with HTTP ${res.status}`);
       if (data.chatSessionId) setChatSessionId(data.chatSessionId);
+      setAccountMode(data.user?.isGuest ? 'guest' : 'paid');
+      setLastStatus(data.budgetBlocked
+        ? `Blocked: ${data.reason || 'Wallet guardrail active'}`
+        : data.mock
+          ? 'Demo/template response. Paid provider access requires sign-in and credits.'
+          : `Paid response via ${data.model || 'selected model'}`);
       setMessages((prev) => [...prev, {
         id: Date.now().toString() + Math.random(),
         role: 'agent',
@@ -243,6 +273,30 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+
+            <div className="px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="flex-1 rounded-xl px-3 py-2 text-white"
+                  style={{ backgroundColor: 'rgba(26,26,46,0.75)', border: '1px solid rgba(255,255,255,0.16)' }}
+                >
+                  {models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.family}: {model.label}
+                    </option>
+                  ))}
+                  {models.length === 0 && <option value={selectedModel}>ChatGPT Fast</option>}
+                </select>
+                <span className="rounded-full px-2 py-1" style={{ fontSize: '0.6875rem', color: accountMode === 'paid' ? '#86EFAC' : '#FCD34D', backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                  {accountMode === 'paid' ? 'Paid' : 'Demo'}
+                </span>
+              </div>
+              <p className="m-0" style={{ color: '#CBD5E1', fontSize: '0.75rem' }}>
+                {lastStatus}
+              </p>
             </div>
 
             {/* Messages */}

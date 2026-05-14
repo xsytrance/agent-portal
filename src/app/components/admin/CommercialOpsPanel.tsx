@@ -27,6 +27,16 @@ interface OpsSummary {
     userId: string;
     actualMicrocredits: string;
   }>;
+  recentProviderLogs: Array<{
+    id: string;
+    status: string;
+    model: string;
+    estimatedCostMicrocredits: string;
+    actualCostMicrocredits?: string | null;
+    blockedReason?: string | null;
+    errorMessage?: string | null;
+    createdAt: string;
+  }>;
   providerHealth: {
     openRouterConfigured: boolean;
     emergencyDisabled: boolean;
@@ -228,6 +238,26 @@ export default function CommercialOpsPanel() {
               </div>
             ))}
             {summary.topSpenders.length === 0 && <p style={{ color: '#64748B' }}>No usage yet.</p>}
+          </div>
+        </section>
+
+        <section>
+          <h4 className="font-semibold mb-3">Recent Provider Logs</h4>
+          <div className="space-y-2">
+            {summary.recentProviderLogs.slice(0, 8).map((log) => (
+              <div key={log.id} className="p-3 rounded-lg" style={{ backgroundColor: '#FFF' }}>
+                <div className="flex justify-between gap-3">
+                  <span>{log.status} · {log.model}</span>
+                  <strong>{formatMicrocredits(log.actualCostMicrocredits || log.estimatedCostMicrocredits)}</strong>
+                </div>
+                {(log.blockedReason || log.errorMessage) && (
+                  <div style={{ color: '#64748B', fontSize: '0.8125rem' }}>
+                    {log.blockedReason || log.errorMessage}
+                  </div>
+                )}
+              </div>
+            ))}
+            {summary.recentProviderLogs.length === 0 && <p style={{ color: '#64748B' }}>No provider requests yet.</p>}
           </div>
         </section>
       </div>

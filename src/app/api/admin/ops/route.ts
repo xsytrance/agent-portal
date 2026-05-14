@@ -20,6 +20,7 @@ export async function GET() {
       wallets: [],
       recentTransactions: [],
       topSpenders: [],
+      recentProviderLogs: [],
       providerHealth: {
         openRouterConfigured: !!process.env.OPENROUTER_API_KEY,
         emergencyDisabled: isProviderEmergencyDisabled(),
@@ -36,6 +37,7 @@ export async function GET() {
     wallets,
     recentTransactions,
     topUsage,
+    recentProviderLogs,
   ] = await Promise.all([
     prisma.walletTransaction.aggregate({
       where: { type: 'credit_purchase' },
@@ -64,6 +66,11 @@ export async function GET() {
       _sum: { actualMicrocredits: true },
       orderBy: { _sum: { actualMicrocredits: 'desc' } },
       take: 10,
+    }),
+    prisma.providerRequestLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: { user: { select: { email: true, name: true, isGuest: true } } },
     }),
   ]);
 
@@ -102,6 +109,18 @@ export async function GET() {
       userId: row.userId,
       user: topUsers.find((user) => user.id === row.userId) ?? null,
       actualMicrocredits: money(row._sum.actualMicrocredits),
+    })),
+    recentProviderLogs: recentProviderLogs.map((log) => ({
+      id: log.id,
+      userId: log.userId,
+      user: log.user,
+      status: log.status,
+      model: log.model,
+      estimatedCostMicrocredits: money(log.estimatedCostMicrocredits),
+      actualCostMicrocredits: money(log.actualCostMicrocredits),
+      blockedReason: log.blockedReason,
+      errorMessage: log.errorMessage,
+      createdAt: log.createdAt.toISOString(),
     })),
     providerHealth: {
       openRouterConfigured: !!process.env.OPENROUTER_API_KEY,

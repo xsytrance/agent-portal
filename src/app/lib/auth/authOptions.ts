@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import type { Adapter } from 'next-auth/adapters';
 import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
+import { verifyPassword } from './password';
 
 export const authOptions: NextAuthOptions = {
   adapter: isDatabaseConfigured() ? (PrismaAdapter(prisma) as Adapter) : undefined,
@@ -24,9 +25,15 @@ export const authOptions: NextAuthOptions = {
           .map((value) => value.trim().toLowerCase())
           .filter(Boolean);
 
-        if (!email || credentials?.password !== expected || !isDatabaseConfigured()) return null;
-        if (allowedEmails.length > 0 && !allowedEmails.includes(email)) return null;
-        if (process.env.NODE_ENV === 'production' && allowedEmails.length === 0) return null;
+        if (!email || !credentials?.password || !isDatabaseConfigured()) return null;
+
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser?.passwordHash && await verifyPassword(credentials.password, existingUser.passwordHash)) {
+          return { id: existingUser.id, email: existingUser.email, name: existingUser.name, role: existingUser.role };
+        }
+
+        if (credentials.password !== expected) return null;
+        if (allowedEmails.length === 0 || !allowedEmails.includes(email)) return null;
 
         const user = await prisma.user.upsert({
           where: { email },
