@@ -1,5 +1,5 @@
 import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
-import { createLedgerEntry, hasSufficientBalance } from '@/app/lib/wallet/walletService';
+import { createLedgerEntry } from '@/app/lib/wallet/walletService';
 import { enforcePromptAndRateGuards, recordDailySpend } from '@/app/lib/security/requestGuards';
 import { estimateTextTokens } from '@/app/lib/budget/costTiers';
 import {
@@ -32,19 +32,19 @@ function estimatePromptTokens(message: string, history?: Array<{ role: 'user' | 
 }
 
 async function logBlocked(input: ProviderAuthorizationInput, reason: string, pricing: ModelPricing | null, estimatedMicrocredits: bigint) {
-  if (!isDatabaseConfigured() || !pricing) return;
+  if (!isDatabaseConfigured()) return;
 
   await prisma.providerRequestLog.create({
     data: {
       userId: input.userId,
       agentId: input.agentId,
-      providerFamily: pricing.family,
-      model: pricing.model,
+      providerFamily: pricing?.family ?? 'other',
+      model: pricing?.model ?? input.model ?? 'unknown',
       status: 'blocked',
       estimatedPromptTokens: estimatePromptTokens(input.message, input.history),
       estimatedCompletionTokens: 300,
       estimatedCostMicrocredits: estimatedMicrocredits,
-      markupMultiplierBps: pricing.markupMultiplierBps,
+      markupMultiplierBps: pricing?.markupMultiplierBps ?? 0,
       blockedReason: reason,
     },
   });
@@ -56,6 +56,7 @@ export async function authorizeProviderCall(input: ProviderAuthorizationInput): 
   const estimatedCompletionTokens = 300;
 
   if (isProviderEmergencyDisabled()) {
+    await logBlocked(input, 'Provider access is disabled by emergency kill switch.', null, 0n);
     return {
       allowed: false,
       reason: 'Provider access is disabled by emergency kill switch.',
@@ -67,6 +68,7 @@ export async function authorizeProviderCall(input: ProviderAuthorizationInput): 
 
   const pricing = resolveModel(input.model);
   if (!pricing) {
+    await logBlocked(input, 'Requested model is not allowlisted.', null, 0n);
     return {
       allowed: false,
       reason: 'Requested model is not allowlisted.',
@@ -102,20 +104,6 @@ export async function authorizeProviderCall(input: ProviderAuthorizationInput): 
     };
   }
 
-  const hasBalance = await hasSufficientBalance(input.userId, estimatedMicrocredits);
-  if (!hasBalance) {
-    const reason = 'Insufficient prepaid wallet balance.';
-    await logBlocked(input, reason, pricing, estimatedMicrocredits);
-    return {
-      allowed: false,
-      reason,
-      pricing,
-      estimatedPromptTokens,
-      estimatedCompletionTokens,
-      estimatedMicrocredits,
-    };
-  }
-
   const log = await prisma.providerRequestLog.create({
     data: {
       userId: input.userId,
@@ -130,19 +118,40 @@ export async function authorizeProviderCall(input: ProviderAuthorizationInput): 
     },
   });
 
-  await createLedgerEntry({
-    userId: input.userId,
-    type: 'usage_deduction',
-    amountMicrocredits: estimatedMicrocredits * -1n,
-    idempotencyKey: `provider:${log.id}:reserve`,
-    providerRequestId: log.id,
-    description: `Reserved estimated ${pricing.model} usage`,
-    metadata: {
-      model: pricing.model,
+  try {
+    await createLedgerEntry({
+      userId: input.userId,
+      type: 'usage_deduction',
+      amountMicrocredits: estimatedMicrocredits * -1n,
+      idempotencyKey: `provider:${log.id}:reserve`,
+      providerRequestId: log.id,
+      description: `Reserved estimated ${pricing.model} usage`,
+      metadata: {
+        model: pricing.model,
+        estimatedPromptTokens,
+        estimatedCompletionTokens,
+      },
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'Insufficient prepaid wallet balance.';
+    await prisma.providerRequestLog.update({
+      where: { id: log.id },
+      data: {
+        status: 'blocked',
+        blockedReason: reason,
+        completedAt: new Date(),
+      },
+    });
+    await recordDailySpend(input.userId, estimatedMicrocredits, true);
+    return {
+      allowed: false,
+      reason,
+      pricing,
       estimatedPromptTokens,
       estimatedCompletionTokens,
-    },
-  });
+      estimatedMicrocredits,
+    };
+  }
 
   return {
     allowed: true,

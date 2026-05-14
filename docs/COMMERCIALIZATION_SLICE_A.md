@@ -62,6 +62,8 @@ NEXTAUTH_SECRET=...
 NEXTAUTH_URL=https://your-domain
 NEXT_PUBLIC_APP_URL=https://your-domain
 ADMIN_PASSWORD=...
+ADMIN_EMAILS=admin@example.com
+ADMIN_BASIC_AUTH_ENABLED=false
 STRIPE_SECRET_KEY=sk_live_or_test...
 STRIPE_WEBHOOK_SECRET=whsec_...
 OPENROUTER_API_KEY=sk-or-...
@@ -159,3 +161,18 @@ Implemented after Slice A:
 - `ChatMessage` persistence model and light chat exchange persistence when PostgreSQL is configured.
 - Admin wallet adjustment endpoint: `POST /api/admin/wallet/adjust`.
 - Commercial Ops admin form for `promotional_credit`, `refund`, and `admin_adjustment`, disabled clearly in no-database mode.
+
+## Stabilization Slice B.1 Progress
+
+Implemented after DB-connected verification:
+
+- Auth.js Credentials now uses JWT sessions, which fixes local credentials sign-in.
+- Admin access prefers Auth.js admin JWTs. Basic Auth is now a temporary fallback controlled by `ADMIN_BASIC_AUTH_ENABLED`; keep it disabled in production unless explicitly needed.
+- `ADMIN_EMAILS` controls which credential-authenticated users can become admins.
+- Header-provided guest IDs are ignored when `DATABASE_URL` is configured. Guests remain demo-only and do not receive persistent paid wallets.
+- Wallet ledger writes now lock the wallet row with `FOR UPDATE` inside a transaction before changing balances.
+- Provider reservations now rely on the atomic ledger write instead of a separate balance check.
+- Stripe webhook processing now records status (`processing`, `processed`, `failed`) and marks events processed only after wallet credit succeeds.
+- Stripe checkout returns structured JSON errors when Stripe rejects session creation.
+
+Production note: paid wallet behavior should require a signed-in user until a signed server-issued guest token is implemented.

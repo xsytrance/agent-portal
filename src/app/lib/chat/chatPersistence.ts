@@ -12,6 +12,7 @@ export interface PersistChatInput {
 
 export async function persistChatExchange(input: PersistChatInput): Promise<string | undefined> {
   if (!isDatabaseConfigured()) return undefined;
+  if (input.userId.startsWith('guest_')) return undefined;
 
   const session = input.chatSessionId
     ? await prisma.chatSession.upsert({

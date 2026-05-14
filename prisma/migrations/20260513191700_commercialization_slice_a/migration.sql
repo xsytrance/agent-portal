@@ -137,7 +137,10 @@ CREATE TABLE "StripeWebhookEvent" (
     "id" TEXT NOT NULL,
     "stripeEventId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "processedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'received',
+    "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "processedAt" TIMESTAMP(3),
+    "errorMessage" TEXT,
     "payload" JSONB NOT NULL,
     CONSTRAINT "StripeWebhookEvent_pkey" PRIMARY KEY ("id")
 );

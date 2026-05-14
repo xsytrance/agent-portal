@@ -10,8 +10,12 @@ export interface UserContext {
 }
 
 function guestIdFromRequest(request?: Request | NextRequest): string {
-  const headerGuestId = request?.headers.get('x-agent-portal-guest-id');
-  if (headerGuestId && /^[a-zA-Z0-9_-]{3,80}$/.test(headerGuestId)) return `guest_${headerGuestId}`;
+  // Persistent paid wallets require an authenticated user. Header-selected guest
+  // IDs are intentionally ignored for DB-backed money paths.
+  if (!isDatabaseConfigured()) {
+    const headerGuestId = request?.headers.get('x-agent-portal-guest-id');
+    if (headerGuestId && /^[a-zA-Z0-9_-]{3,80}$/.test(headerGuestId)) return `guest_${headerGuestId}`;
+  }
   return 'guest_demo';
 }
 
@@ -30,33 +34,9 @@ export async function getUserContext(request?: Request | NextRequest): Promise<U
 
   const userId = guestIdFromRequest(request);
 
-  if (!isDatabaseConfigured()) {
-    return {
-      userId,
-      isGuest: true,
-      databaseBacked: false,
-    };
-  }
-
-  await prisma.user.upsert({
-    where: { id: userId },
-    update: {},
-    create: {
-      id: userId,
-      name: 'Guest',
-      isGuest: true,
-    },
-  });
-
-  await prisma.userWallet.upsert({
-    where: { userId },
-    update: {},
-    create: { userId },
-  });
-
   return {
     userId,
     isGuest: true,
-    databaseBacked: true,
+    databaseBacked: false,
   };
 }

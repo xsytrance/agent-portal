@@ -7,7 +7,7 @@ import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
 export const authOptions: NextAuthOptions = {
   adapter: isDatabaseConfigured() ? (PrismaAdapter(prisma) as Adapter) : undefined,
   session: {
-    strategy: isDatabaseConfigured() ? 'database' : 'jwt',
+    strategy: 'jwt',
   },
   providers: [
     CredentialsProvider({
@@ -18,14 +18,22 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         const expected = process.env.ADMIN_PASSWORD || 'admin';
-        if (!credentials?.email || credentials.password !== expected || !isDatabaseConfigured()) return null;
+        const email = credentials?.email?.toLowerCase();
+        const allowedEmails = (process.env.ADMIN_EMAILS || '')
+          .split(',')
+          .map((value) => value.trim().toLowerCase())
+          .filter(Boolean);
+
+        if (!email || credentials?.password !== expected || !isDatabaseConfigured()) return null;
+        if (allowedEmails.length > 0 && !allowedEmails.includes(email)) return null;
+        if (process.env.NODE_ENV === 'production' && allowedEmails.length === 0) return null;
 
         const user = await prisma.user.upsert({
-          where: { email: credentials.email },
-          update: {},
+          where: { email },
+          update: { role: 'admin' },
           create: {
-            email: credentials.email,
-            name: credentials.email.split('@')[0],
+            email,
+            name: email.split('@')[0],
             role: 'admin',
           },
         });
@@ -36,14 +44,22 @@ export const authOptions: NextAuthOptions = {
           create: { userId: user.id },
         });
 
-        return { id: user.id, email: user.email, name: user.name };
+        return { id: user.id, email: user.email, name: user.name, role: user.role };
       },
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as { role?: string }).role ?? 'user';
+      }
+      return token;
+    },
+    async session({ session, token }) {
       if (session.user) {
-        session.user.id = user.id;
+        session.user.id = String(token.id ?? token.sub ?? '');
+        session.user.role = typeof token.role === 'string' ? token.role : undefined;
       }
       return session;
     },

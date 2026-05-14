@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   const costTier = classifyChatCost(hasProviderKey);
   const estimatedTokens = estimateChatTokens(message, history);
 
-  if (hasProviderKey) {
+  if (hasProviderKey && !user.isGuest && user.databaseBacked) {
     const authorization = await authorizeProviderCall({
       userId: user.userId,
       agentId,
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     }
   }
 
-  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId, userId: user.userId } });
+  await info('chat-route', 'Serving mock response', { route: '/api/agent/chat', details: { agentId, hasKey: !!key, sessionId, userId: user.userId, guest: user.isGuest } });
   const mock = createMockResponse(message, agentId);
   const chatSessionId = await persistChatExchange({
     userId: user.userId,

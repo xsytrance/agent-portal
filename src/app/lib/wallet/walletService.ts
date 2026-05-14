@@ -1,4 +1,4 @@
-import { Prisma, type WalletTransactionType } from '@prisma/client';
+import { Prisma, type PrismaClient, type WalletTransaction, type WalletTransactionType } from '@prisma/client';
 import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
 
 export interface WalletSummary {
@@ -24,6 +24,8 @@ export interface LedgerEntryInput {
 function stringifyBigInt(value: bigint): string {
   return value.toString();
 }
+
+type TransactionClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 export async function ensureWallet(userId: string) {
   return prisma.userWallet.upsert({
@@ -82,60 +84,86 @@ export async function createLedgerEntry(input: LedgerEntryInput) {
     throw new Error('Database is required for wallet ledger writes');
   }
 
-  return prisma.$transaction(async (tx) => {
-    if (input.idempotencyKey) {
-      const existing = await tx.walletTransaction.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
-      });
-      if (existing) return existing;
-    }
-
-    const wallet = await tx.userWallet.upsert({
-      where: { userId: input.userId },
-      update: {},
-      create: { userId: input.userId },
-    });
-
-    const nextBalance = wallet.balanceMicrocredits + input.amountMicrocredits;
-    if (nextBalance < 0n) {
-      throw new Error('Insufficient wallet balance');
-    }
-
-    const transaction = await tx.walletTransaction.create({
-      data: {
-        walletId: wallet.id,
-        userId: input.userId,
-        type: input.type,
-        amountMicrocredits: input.amountMicrocredits,
-        balanceAfterMicrocredits: nextBalance,
-        idempotencyKey: input.idempotencyKey,
-        stripeCheckoutSessionId: input.stripeCheckoutSessionId,
-        stripePaymentIntentId: input.stripePaymentIntentId,
-        providerRequestId: input.providerRequestId,
-        description: input.description,
-        metadata: input.metadata,
-      },
-    });
-
-    await tx.userWallet.update({
-      where: { id: wallet.id },
-      data: {
-        balanceMicrocredits: nextBalance,
-        lifetimePurchasedMicrocredits: input.amountMicrocredits > 0n && input.type === 'credit_purchase'
-          ? wallet.lifetimePurchasedMicrocredits + input.amountMicrocredits
-          : wallet.lifetimePurchasedMicrocredits,
-        lifetimeUsedMicrocredits: input.amountMicrocredits < 0n && input.type === 'usage_deduction'
-          ? wallet.lifetimeUsedMicrocredits + (input.amountMicrocredits * -1n)
-          : wallet.lifetimeUsedMicrocredits,
-      },
-    });
-
-    return transaction;
-  });
+  return prisma.$transaction(async (tx) => createLedgerEntryInTransaction(tx, input));
 }
 
 export async function hasSufficientBalance(userId: string, amountMicrocredits: bigint): Promise<boolean> {
   if (!isDatabaseConfigured()) return false;
   const wallet = await ensureWallet(userId);
   return wallet.balanceMicrocredits >= amountMicrocredits;
+}
+
+export async function createLedgerEntryInTransaction(
+  tx: TransactionClient,
+  input: LedgerEntryInput,
+): Promise<WalletTransaction> {
+  if (input.idempotencyKey) {
+    const existing = await tx.walletTransaction.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (existing) return existing;
+  }
+
+  const wallet = await tx.userWallet.upsert({
+    where: { userId: input.userId },
+    update: {},
+    create: { userId: input.userId },
+  });
+
+  const [lockedWallet] = await tx.$queryRaw<Array<{
+    id: string;
+    balanceMicrocredits: bigint;
+    lifetimePurchasedMicrocredits: bigint;
+    lifetimeUsedMicrocredits: bigint;
+  }>>`
+    SELECT id, "balanceMicrocredits", "lifetimePurchasedMicrocredits", "lifetimeUsedMicrocredits"
+    FROM user_wallets
+    WHERE id = ${wallet.id}
+    FOR UPDATE
+  `;
+
+  if (!lockedWallet) throw new Error('Wallet lock failed');
+
+  const nextBalance = lockedWallet.balanceMicrocredits + input.amountMicrocredits;
+  if (nextBalance < 0n) throw new Error('Insufficient wallet balance');
+
+  const transaction = await tx.walletTransaction.create({
+    data: {
+      walletId: lockedWallet.id,
+      userId: input.userId,
+      type: input.type,
+      amountMicrocredits: input.amountMicrocredits,
+      balanceAfterMicrocredits: nextBalance,
+      idempotencyKey: input.idempotencyKey,
+      stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+      stripePaymentIntentId: input.stripePaymentIntentId,
+      providerRequestId: input.providerRequestId,
+      description: input.description,
+      metadata: input.metadata,
+    },
+  });
+
+  const lifetimePurchasedMicrocredits = input.amountMicrocredits > 0n && input.type === 'credit_purchase'
+    ? lockedWallet.lifetimePurchasedMicrocredits + input.amountMicrocredits
+    : lockedWallet.lifetimePurchasedMicrocredits;
+  let lifetimeUsedMicrocredits = input.amountMicrocredits < 0n && input.type === 'usage_deduction'
+    ? lockedWallet.lifetimeUsedMicrocredits + (input.amountMicrocredits * -1n)
+    : lockedWallet.lifetimeUsedMicrocredits;
+
+  if (input.amountMicrocredits > 0n && input.type === 'refund' && input.providerRequestId) {
+    lifetimeUsedMicrocredits = lifetimeUsedMicrocredits > input.amountMicrocredits
+      ? lifetimeUsedMicrocredits - input.amountMicrocredits
+      : 0n;
+  }
+
+  await tx.userWallet.update({
+    where: { id: lockedWallet.id },
+    data: {
+      balanceMicrocredits: nextBalance,
+      lifetimePurchasedMicrocredits,
+      lifetimeUsedMicrocredits,
+    },
+  });
+
+  return transaction;
 }

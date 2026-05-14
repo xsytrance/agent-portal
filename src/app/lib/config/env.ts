@@ -5,6 +5,8 @@ const envSchema = z.object({
   NEXTAUTH_SECRET: z.string().min(16).optional(),
   NEXTAUTH_URL: z.string().url().optional(),
   ADMIN_PASSWORD: z.string().optional(),
+  ADMIN_EMAILS: z.string().optional(),
+  ADMIN_BASIC_AUTH_ENABLED: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().optional(),
   OPENROUTER_EMERGENCY_DISABLED: z.string().optional(),
@@ -35,7 +37,7 @@ export function getEnvValidationReport(): {
   const missingForProduction: string[] = [];
   const warnings: string[] = [];
 
-  for (const key of ['DATABASE_URL', 'NEXTAUTH_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) {
+  for (const key of ['DATABASE_URL', 'NEXTAUTH_SECRET', 'ADMIN_PASSWORD', 'ADMIN_EMAILS', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) {
     if (!env[key as keyof AppEnv]) missingForProduction.push(key);
   }
 

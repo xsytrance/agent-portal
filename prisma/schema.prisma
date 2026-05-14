@@ -209,7 +209,10 @@ model StripeWebhookEvent {
   id            String   @id @default(cuid())
   stripeEventId String   @unique
   type          String
-  processedAt   DateTime @default(now())
+  status        String   @default("received")
+  receivedAt    DateTime @default(now())
+  processedAt   DateTime?
+  errorMessage  String?
   payload       Json
 }
 

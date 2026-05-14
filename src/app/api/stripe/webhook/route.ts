@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { prisma, isDatabaseConfigured } from '@/app/lib/db/prisma';
-import { createLedgerEntry } from '@/app/lib/wallet/walletService';
+import { createLedgerEntryInTransaction } from '@/app/lib/wallet/walletService';
 import { getStripeClient, getStripeWebhookSecret } from '@/app/lib/stripe/stripeClient';
 import { error, info } from '@/app/lib/logger';
 
@@ -29,15 +29,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Invalid signature' }, { status: 400 });
   }
 
-  try {
-    await prisma.stripeWebhookEvent.create({
-      data: {
-        stripeEventId: event.id,
-        type: event.type,
-        payload: event as unknown as object,
-      },
-    });
-  } catch {
+  const existing = await prisma.stripeWebhookEvent.findUnique({
+    where: { stripeEventId: event.id },
+  });
+  if (existing?.status === 'processed') {
     return NextResponse.json({ success: true, duplicate: true });
   }
 
@@ -53,23 +48,84 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Missing wallet metadata' }, { status: 400 });
     }
 
-    await createLedgerEntry({
-      userId,
-      type: 'credit_purchase',
-      amountMicrocredits: microcredits,
-      idempotencyKey: `stripe:checkout:${session.id}`,
-      stripeCheckoutSessionId: session.id,
-      stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
-      description: `Stripe credit purchase ${session.metadata?.dollars ? `$${session.metadata.dollars}` : ''}`.trim(),
-      metadata: {
-        stripeEventId: event.id,
-        amountTotal: session.amount_total,
-        currency: session.currency,
-      },
-    });
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.stripeWebhookEvent.upsert({
+          where: { stripeEventId: event.id },
+          update: {
+            status: 'processing',
+            errorMessage: null,
+            payload: event as unknown as object,
+          },
+          create: {
+            stripeEventId: event.id,
+            type: event.type,
+            status: 'processing',
+            payload: event as unknown as object,
+          },
+        });
+
+        await createLedgerEntryInTransaction(tx, {
+          userId,
+          type: 'credit_purchase',
+          amountMicrocredits: microcredits,
+          idempotencyKey: `stripe:checkout:${session.id}`,
+          stripeCheckoutSessionId: session.id,
+          stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
+          description: `Stripe credit purchase ${session.metadata?.dollars ? `$${session.metadata.dollars}` : ''}`.trim(),
+          metadata: {
+            stripeEventId: event.id,
+            amountTotal: session.amount_total,
+            currency: session.currency,
+          },
+        });
+
+        await tx.stripeWebhookEvent.update({
+          where: { stripeEventId: event.id },
+          data: {
+            status: 'processed',
+            processedAt: new Date(),
+            errorMessage: null,
+          },
+        });
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Wallet credit failed';
+      await prisma.stripeWebhookEvent.upsert({
+        where: { stripeEventId: event.id },
+        update: {
+          status: 'failed',
+          errorMessage: message,
+          payload: event as unknown as object,
+        },
+        create: {
+          stripeEventId: event.id,
+          type: event.type,
+          status: 'failed',
+          errorMessage: message,
+          payload: event as unknown as object,
+        },
+      });
+      await error('stripe-webhook', 'Failed to credit wallet from checkout session', {
+        details: { userId, sessionId: session.id, message },
+      });
+      return NextResponse.json({ success: false, error: 'Wallet credit failed' }, { status: 500 });
+    }
 
     await info('stripe-webhook', 'Credited wallet from checkout session', {
       details: { userId, sessionId: session.id, microcredits: microcredits.toString() },
+    });
+  } else {
+    await prisma.stripeWebhookEvent.upsert({
+      where: { stripeEventId: event.id },
+      update: { status: 'processed', processedAt: new Date(), payload: event as unknown as object },
+      create: {
+        stripeEventId: event.id,
+        type: event.type,
+        status: 'processed',
+        processedAt: new Date(),
+        payload: event as unknown as object,
+      },
     });
   }
 

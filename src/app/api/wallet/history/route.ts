@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const user = await getUserContext(request);
   const url = new URL(request.url);
   const limit = Number(url.searchParams.get('limit') ?? 50);
-  const transactions = await getWalletHistory(user.userId, limit);
+  const transactions = user.databaseBacked ? await getWalletHistory(user.userId, limit) : [];
 
   return NextResponse.json({
     success: true,
