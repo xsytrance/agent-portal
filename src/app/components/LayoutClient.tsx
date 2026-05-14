@@ -1,6 +1,7 @@
 'use client';
 
 import { AgentProvider, useAgent } from '@/app/context/AgentContext';
+import { SessionProvider } from 'next-auth/react';
 import { useLenis } from '@/app/hooks/useLenis';
 import { useAutonomousLoop } from '@/app/hooks/useAutonomousLoop';
 import { useAtlasBrain } from '@/app/hooks/useAtlasBrain';
@@ -79,18 +80,20 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   }, [brain.signalScroll]);
 
   return (
-    <AgentProvider>
-      <ThemeSync>
-        <AgentBrainSync brain={brain} />
-        <ParticleBackground atlasBrain={brain} />
-        <div className="relative z-10">
-          <Navbar />
-          <main>{children}</main>
-          <Footer />
-        </div>
-        <FloatingEye atlasBrain={brain} />
-        <ChatPanel atlasBrain={brain} />
-      </ThemeSync>
-    </AgentProvider>
+    <SessionProvider>
+      <AgentProvider>
+        <ThemeSync>
+          <AgentBrainSync brain={brain} />
+          <ParticleBackground atlasBrain={brain} />
+          <div className="relative z-10">
+            <Navbar />
+            <main>{children}</main>
+            <Footer />
+          </div>
+          <FloatingEye atlasBrain={brain} />
+          <ChatPanel atlasBrain={brain} />
+        </ThemeSync>
+      </AgentProvider>
+    </SessionProvider>
   );
 }

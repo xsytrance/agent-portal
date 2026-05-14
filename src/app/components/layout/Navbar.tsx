@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/app/context/AgentContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import AccountMenu from '@/app/components/account/AccountMenu';
+import { useSession } from 'next-auth/react';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeAgent } = useAgent();
+  const { data: session } = useSession();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -20,7 +23,7 @@ export default function Navbar() {
     { label: 'Home', href: '/' },
     { label: 'Agents', href: '/#agents' },
     { label: 'Demo', href: '/#demo' },
-    { label: 'Admin', href: '/admin' },
+    ...(session?.user?.role === 'admin' ? [{ label: 'Admin', href: '/admin' }] : []),
   ];
 
   return (
@@ -70,6 +73,7 @@ export default function Navbar() {
                 />
               </Link>
             ))}
+            <AccountMenu />
           </div>
 
           <button
@@ -125,6 +129,14 @@ export default function Navbar() {
                 </Link>
               </motion.div>
             ))}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ delay: navLinks.length * 0.1 }}
+            >
+              <AccountMenu />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

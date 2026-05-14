@@ -13,6 +13,7 @@ import {
   FileText,
   List,
   ArrowLeft,
+  Wallet,
 } from 'lucide-react';
 
 import ApiKeysPanel from '@/app/components/admin/ApiKeysPanel';
@@ -21,8 +22,9 @@ import AutonomousLoopPanel from '@/app/components/admin/AutonomousLoopPanel';
 import FeaturesPanel from '@/app/components/admin/FeaturesPanel';
 import PromptsPanel from '@/app/components/admin/PromptsPanel';
 import LogsPanel from '@/app/components/admin/LogsPanel';
+import CommercialOpsPanel from '@/app/components/admin/CommercialOpsPanel';
 
-type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'features' | 'prompts' | 'logs';
+type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'features' | 'prompts' | 'logs' | 'commercial';
 
 interface SidebarItem {
   key: PanelKey;
@@ -36,6 +38,7 @@ const sidebarItems: SidebarItem[] = [
   { key: 'agents', label: 'Agent Config', icon: Bot, section: 'configuration' },
   { key: 'autonomous', label: 'Autonomous Loop', icon: Zap, section: 'configuration' },
   { key: 'features', label: 'Features', icon: Sparkles, section: 'configuration' },
+  { key: 'commercial', label: 'Commercial Ops', icon: Wallet, section: 'system' },
   { key: 'prompts', label: 'Prompts', icon: FileText, section: 'system' },
   { key: 'logs', label: 'Logs', icon: List, section: 'system' },
 ];
@@ -78,6 +81,8 @@ export default function Admin() {
         return <PromptsPanel promptConfigs={config.promptConfigs} onChange={setPromptConfigs} />;
       case 'logs':
         return <LogsPanel logs={config.logs} onClear={clearLogs} />;
+      case 'commercial':
+        return <CommercialOpsPanel />;
       default:
         return null;
     }

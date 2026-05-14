@@ -1,10 +1,18 @@
-import { PortalEvent, PortalEventType, PortalEventSource, PortalEventVisibility, PortalEventImportance } from './eventTypes';
+import {
+  BEHAVIOR_PORTAL_EVENT_TYPES,
+  type PortalEvent,
+  type PortalEventType,
+  type PortalEventSource,
+  type PortalEventVisibility,
+  type PortalEventImportance,
+} from './eventTypes';
 
 const VALID_TYPES: PortalEventType[] = [
   'agent.message', 'agent.thinking', 'agent.typing', 'agent.error', 'agent.eye_emotion',
   'portal.repaint', 'portal.spawn_card', 'portal.create_page', 'portal.report_ready',
   'portal.feed_item', 'portal.deal_card', 'portal.news_card', 'portal.demo_action',
   'portal.theme_change', 'portal.sound_cue', 'system.log', 'admin.config_changed',
+  ...BEHAVIOR_PORTAL_EVENT_TYPES,
 ];
 const VALID_SOURCES: PortalEventSource[] = ['user', 'agent', 'system', 'admin', 'external'];
 const VALID_VIS: PortalEventVisibility[] = ['public', 'admin', 'internal'];
@@ -29,6 +37,35 @@ function isString(val: unknown): val is string { return typeof val === 'string';
 
 function checkStringLength(val: unknown, field: string, errors: string[]): void {
   if (isString(val) && val.length > MAX_STRING_LENGTH) errors.push(`${field} exceeds max length of ${MAX_STRING_LENGTH}`);
+}
+
+function validateBehaviorEventPayload(type: PortalEventType, payload: Record<string, unknown>, errors: string[]): void {
+  if (!BEHAVIOR_PORTAL_EVENT_TYPES.includes(type as typeof BEHAVIOR_PORTAL_EVENT_TYPES[number])) return;
+
+  if (type === 'behavior.signal_received' && !isString(payload.signalId)) {
+    errors.push('payload.signalId is required for behavior.signal_received');
+  }
+
+  if ((type === 'behavior.plan_created' || type === 'behavior.plan_cancelled') && !isString(payload.planId)) {
+    errors.push(`payload.planId is required for ${type}`);
+  }
+
+  if ((type === 'behavior.decision' || type === 'behavior.silence') && !isString(payload.reason)) {
+    errors.push(`payload.reason is required for ${type}`);
+  }
+
+  if (type === 'behavior.cooldown' && !isString(payload.cooldownKey)) {
+    errors.push('payload.cooldownKey is required for behavior.cooldown');
+  }
+
+  if (type === 'behavior.budget_blocked' && !isString(payload.budgetStatus)) {
+    errors.push('payload.budgetStatus is required for behavior.budget_blocked');
+  }
+
+  if (type === 'behavior.state_changed') {
+    if (!isString(payload.fromState)) errors.push('payload.fromState is required for behavior.state_changed');
+    if (!isString(payload.toState)) errors.push('payload.toState is required for behavior.state_changed');
+  }
 }
 
 export function validateEvent(input: unknown): ValidationResult {
@@ -60,17 +97,20 @@ export function validateEvent(input: unknown): ValidationResult {
 
   if (isString(raw.timestamp) && !isValidISODate(raw.timestamp)) errors.push('timestamp must be a valid ISO 8601 string');
 
+  let payload: Record<string, unknown> = {};
   if (raw.payload !== undefined) {
     if (typeof raw.payload !== 'object' || raw.payload === null || Array.isArray(raw.payload)) {
       errors.push('payload must be an object');
     } else {
-      const payload = raw.payload as Record<string, unknown>;
+      payload = raw.payload as Record<string, unknown>;
       if (Object.keys(payload).length > MAX_PAYLOAD_KEYS) errors.push(`payload exceeds max ${MAX_PAYLOAD_KEYS} keys`);
       try {
         if (JSON.stringify(payload).length > MAX_PAYLOAD_SIZE) errors.push(`payload exceeds max size of ${MAX_PAYLOAD_SIZE} bytes`);
       } catch { errors.push('payload is not serializable'); }
     }
   }
+
+  if (isString(raw.type)) validateBehaviorEventPayload(raw.type as PortalEventType, payload, errors);
 
   checkStringLength(raw.id, 'id', errors);
   checkStringLength(raw.type, 'type', errors);
@@ -84,7 +124,7 @@ export function validateEvent(input: unknown): ValidationResult {
     timestamp: isString(raw.timestamp) ? raw.timestamp : new Date().toISOString(),
     source: raw.source as PortalEventSource,
     agentId: isString(raw.agentId) ? raw.agentId.trim() : undefined,
-    payload: (raw.payload && typeof raw.payload === 'object' && !Array.isArray(raw.payload)) ? raw.payload as Record<string, unknown> : {},
+    payload,
     visibility,
     importance,
     artifactId: isString(raw.artifactId) ? raw.artifactId.trim() : undefined,
