@@ -36,31 +36,42 @@ export async function POST(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const configuredPrice = priceEnvByDollars[pack.dollars];
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    success_url: `${appUrl}/?checkout=success`,
-    cancel_url: `${appUrl}/?checkout=cancelled`,
-    client_reference_id: user.userId,
-    metadata: {
-      userId: user.userId,
-      dollars: String(pack.dollars),
-      microcredits: pack.microcredits.toString(),
-    },
-    line_items: [
-      configuredPrice
-        ? { price: configuredPrice, quantity: 1 }
-        : {
-            quantity: 1,
-            price_data: {
-              currency: 'usd',
-              unit_amount: pack.amountCents,
-              product_data: {
-                name: `${pack.label} Agent Portal credits`,
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: `${appUrl}/?checkout=success`,
+      cancel_url: `${appUrl}/?checkout=cancelled`,
+      client_reference_id: user.userId,
+      metadata: {
+        userId: user.userId,
+        dollars: String(pack.dollars),
+        microcredits: pack.microcredits.toString(),
+      },
+      line_items: [
+        configuredPrice
+          ? { price: configuredPrice, quantity: 1 }
+          : {
+              quantity: 1,
+              price_data: {
+                currency: 'usd',
+                unit_amount: pack.amountCents,
+                product_data: {
+                  name: `${pack.label} Agent Portal credits`,
+                },
               },
             },
-          },
-    ],
-  });
+      ],
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: err instanceof Error ? err.message : 'Stripe checkout session creation failed',
+      },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({
     success: true,
