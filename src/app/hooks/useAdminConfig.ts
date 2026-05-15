@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { agentsData } from '@/app/lib/agents/starterAgents';
+import { agents as agentsData } from '@/app/lib/agents/starterAgents';
 
 export interface ApiKey {
   id: string;
@@ -86,7 +86,8 @@ function generateId(): string {
 }
 
 function getDefaultAgentConfigs(): AgentConfigData[] {
-  return agentsData.map((agent, index) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return agentsData.map((agent: any, index: number) => ({
     id: agent.id,
     name: agent.name,
     role: agent.role,

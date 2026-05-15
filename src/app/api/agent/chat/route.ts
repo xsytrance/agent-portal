@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
-        const result = await orProvider.chat({ message, agentId, history: body.history });
+        const result = await orProvider.chat({ message, agentId, history: body.history as { role: "user" | "assistant"; content: string; }[] });
         return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false });
       }
     } catch (err) {
