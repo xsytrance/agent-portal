@@ -63,8 +63,8 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       const movementRange = eyeBehavior?.movementRange ?? 10;
 
       // ── 3. Partial attention: drift toward secondary target ──
-      const partialAttention = (eyeBehavior as any)?.partialAttention;
-      const secondaryTarget = (eyeBehavior as any)?.secondaryTarget;
+      const partialAttention = (eyeBehavior as unknown as { partialAttention?: number })?.partialAttention;
+      const secondaryTarget = (eyeBehavior as unknown as { secondaryTarget?: { x: number, y: number } })?.secondaryTarget;
       let targetX = 0;
       let targetY = 0;
 
@@ -132,7 +132,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       pupilRef.current.style.transform = `translate(${finalX}px, ${finalY}px)`;
 
       // ── 4. Cognition cues: subtle pupil dilation/constriction ──
-      const cue = (eyeBehavior as any)?.cognitionCue;
+      const cue = (eyeBehavior as unknown as { cognitionCue?: string })?.cognitionCue;
       const baseDilation = eyeBehavior?.pupilDilation ?? 1;
       let targetPupilScale = baseDilation;
 
