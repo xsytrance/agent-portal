@@ -10,8 +10,8 @@ export async function getOpenRouterModel(): Promise<string> {
   return process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 }
 
-export async function getAdminPassword(): Promise<string> {
-  return process.env.ADMIN_PASSWORD || 'admin';
+export async function getAdminPassword(): Promise<string | undefined> {
+  return process.env.ADMIN_PASSWORD;
 }
 
 export async function getAppEnv(): Promise<'development' | 'production'> {
