@@ -33,7 +33,7 @@ function createMockResponse(message: string, agentId: string): { response: strin
 }
 
 export async function POST(request: Request) {
-  let body: { message?: string; agentId?: string; history?: Array<{ role: string; content: string }> };
+  let body: { message?: string; agentId?: string; history?: Array<{ role: "user" | "assistant"; content: string }> };
 
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON body', mock: false }, { status: 400 });
