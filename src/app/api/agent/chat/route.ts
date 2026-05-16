@@ -52,7 +52,12 @@ export async function POST(request: Request) {
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
-        const result = await orProvider.chat({ message, agentId, history: body.history });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const history = (body.history || []).map((msg: any) => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        })) as { role: 'user' | 'assistant'; content: string }[];
+        const result = await orProvider.chat({ message, agentId, history });
         return NextResponse.json({ response: result.content, model: result.model, usage: result.usage, mock: false });
       }
     } catch (err) {
