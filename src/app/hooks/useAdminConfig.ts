@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { agentsData } from '@/app/lib/agents/starterAgents';
+import { agents } from '@/app/lib/agents/starterAgents';
 
 export interface ApiKey {
   id: string;
@@ -86,7 +86,7 @@ function generateId(): string {
 }
 
 function getDefaultAgentConfigs(): AgentConfigData[] {
-  return agentsData.map((agent, index) => ({
+  return agents.map((agent, index) => ({
     id: agent.id,
     name: agent.name,
     role: agent.role,
@@ -134,7 +134,7 @@ function getDefaultFeatureFlags(): FeatureFlags {
 }
 
 function getDefaultPromptConfigs(): PromptConfig[] {
-  return agentsData.map((agent) => ({
+  return agents.map((agent) => ({
     agentId: agent.id,
     systemPrompt: `You are ${agent.name}, ${agent.role.toLowerCase()}. ${agent.description}`,
     welcomeMessages: [agent.welcomeMessage],
