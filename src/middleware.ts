@@ -9,7 +9,15 @@ export function middleware(request: NextRequest) {
     !pathname.startsWith('/admin/_next')
   ) {
     const authHeader = request.headers.get('authorization');
-    const expectedPassword = process.env.ADMIN_PASSWORD || 'admin';
+    const expectedPassword = process.env.ADMIN_PASSWORD;
+
+    if (!expectedPassword) {
+      return new NextResponse('Unauthorized', {
+        status: 401,
+        headers: { 'WWW-Authenticate': 'Basic realm="Agent Portal Admin"' },
+      });
+    }
+
     const expectedAuth = 'Basic ' + Buffer.from(`admin:${expectedPassword}`).toString('base64');
 
     if (authHeader !== expectedAuth) {
