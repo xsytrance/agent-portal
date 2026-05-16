@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAgent } from '@/app/context/AgentContext';
 import type { PromptConfig } from '@/app/hooks/useAdminConfig';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,11 +14,15 @@ interface PromptsPanelProps {
 type TabKey = 'system' | 'greeting' | 'idle' | 'demo';
 
 export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelProps) {
-  const { agents } = useAgent();
-  const { activeAgent } = useAgent();
+  const { agents, activeAgent } = useAgent();
   const primaryColor = activeAgent.primaryColor;
   const [activeTab, setActiveTab] = useState<TabKey>('system');
   const [activeAgentId, setActiveAgentId] = useState(agents[0]?.id || 'nova');
+
+  const selectedAgent = useMemo(
+    () => agents.find((a) => a.id === activeAgentId),
+    [agents, activeAgentId]
+  );
   const [savedToast, setSavedToast] = useState(false);
   const [newIdleMessage, setNewIdleMessage] = useState('');
   const [newDemoResponse, setNewDemoResponse] = useState('');
@@ -225,7 +229,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
                 }}
                 maxLength={500}
                 rows={4}
-                placeholder={`Hello! I'm ${agents.find((a) => a.id === activeAgentId)?.name || 'the agent'}. How can I help you today?`}
+                placeholder={`Hello! I'm ${selectedAgent?.name || 'the agent'}. How can I help you today?`}
                 className="w-full px-4 py-3 text-white outline-none resize-none"
                 style={{
                   backgroundColor: 'rgba(26, 26, 46, 0.6)',
@@ -467,7 +471,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
             const defaultConfig = promptConfigs[configIndex];
             if (defaultConfig) {
               updateConfig({
-                systemPrompt: `You are ${agents.find((a) => a.id === activeAgentId)?.name || 'the agent'}.`,
+                systemPrompt: `You are ${selectedAgent?.name || 'the agent'}.`,
                 welcomeMessages: [],
                 personalityDescription: '',
                 responseStyle: 'conversational',
@@ -515,7 +519,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
                 color: '#1A1A2E',
               }}
             >
-              Prompts updated for {agents.find((a) => a.id === activeAgentId)?.name}
+              Prompts updated for {selectedAgent?.name}
             </span>
           </motion.div>
         )}
