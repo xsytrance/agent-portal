@@ -22,7 +22,7 @@ export interface HoverProps {
   onMouseEnter: (e: React.MouseEvent) => void;
 }
 
-export function useHoverDetection(onHover: (target: string) => void) {
+export function useHoverDetection(onHover: (target: string, x: number, y: number) => void) {
   /** Tracks the last reported hover target to debounce duplicates */
   const lastHoverRef = useRef<string | null>(null);
   /** Counts total hovers for throttling */
@@ -42,7 +42,7 @@ export function useHoverDetection(onHover: (target: string) => void) {
 
         // Report every ~5th unique hover (rare reactions)
         if (hoverCountRef.current % 5 === 0) {
-          onHover(target);
+          onHover(target, e.clientX, e.clientY);
         }
       }
     },

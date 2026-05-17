@@ -24,9 +24,9 @@ interface UseIdleDetectionOptions {
   /** Milliseconds of inactivity before considering idle. Default: 5000 */
   timeoutMs?: number;
   /** Called once when the user becomes idle */
-  onIdle?: () => void;
+  onIdle?: (idleDurationMs: number) => void;
   /** Called once when the user returns from idle */
-  onActive?: () => void;
+  onActive?: (idleDurationMs: number) => void;
 }
 
 export function useIdleDetection(options: UseIdleDetectionOptions = {}) {
@@ -36,7 +36,11 @@ export function useIdleDetection(options: UseIdleDetectionOptions = {}) {
   const isIdleRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const lastActiveTimeRef = useRef(Date.now());
+
   const resetTimer = useCallback(() => {
+    const now = Date.now();
+
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -45,13 +49,15 @@ export function useIdleDetection(options: UseIdleDetectionOptions = {}) {
     // If we were idle, transition back to active
     if (isIdleRef.current) {
       isIdleRef.current = false;
-      onActive?.();
+      onActive?.(now - lastActiveTimeRef.current);
     }
+
+    lastActiveTimeRef.current = now;
 
     // Start a new idle timer
     timerRef.current = setTimeout(() => {
       isIdleRef.current = true;
-      onIdle?.();
+      onIdle?.(timeoutMs);
     }, timeoutMs);
   }, [timeoutMs, onIdle, onActive]);
 
