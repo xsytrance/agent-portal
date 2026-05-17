@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAgent } from '@/app/context/AgentContext';
 import { useReducedMotion } from '@/app/hooks/useReducedMotion';
+import { usePortalEvents } from '@/app/hooks/usePortalEvents';
 import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
 interface Particle {
@@ -41,11 +42,11 @@ export default function ParticleBackground({
   particleCount,
   className,
   style,
-  atlasBrain,
 }: ParticleBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { activeAgent } = useAgent();
   const reducedMotion = useReducedMotion();
+  const { events } = usePortalEvents();
   const particlesRef = useRef<Particle[]>([]);
   const mouseRef = useRef({ x: -9999, y: -9999 });
   const rafRef = useRef<number | null>(null);
@@ -56,8 +57,8 @@ export default function ParticleBackground({
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
   // ── Mood-based particle params (smoothly lerped) ──
-  const silenceMode = atlasBrain?.silenceMode ?? 'OBSERVING';
-  const density = atlasBrain?.state?.density ?? 'medium';
+  const [silenceMode, setSilenceMode] = useState<string>('OBSERVING');
+  const [density, setDensity] = useState<'ambient'|'low'|'medium'>('medium');
 
   const targetMoodRef = useRef<MoodParams>(MOOD_MAP.OBSERVING);
   const currentMoodRef = useRef<MoodParams>({ ...MOOD_MAP.OBSERVING });
@@ -68,6 +69,37 @@ export default function ParticleBackground({
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  // React to PortalEvents
+  useEffect(() => {
+    const latestEvent = events[events.length - 1];
+    if (!latestEvent) return;
+
+    if (latestEvent.type === 'portal.silence_mode') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payload = latestEvent.metadata as any;
+      if (payload && payload.mode) {
+         // Map internal SilenceModes to the visual targets here
+         const map: Record<string, string> = {
+            sleep_mode: 'RESTING',
+            passive_idle: 'OBSERVING',
+            deep_thinking: 'THINKING',
+            mischief_brewing: 'THINKING',
+            meditation: 'RESTING',
+            low_power: 'RESTING',
+            attentive_idle: 'OBSERVING'
+         };
+         setSilenceMode(map[payload.mode] || 'OBSERVING');
+      }
+    } else if (latestEvent.type === 'agent.mood_shift') {
+       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       const payload = latestEvent.metadata as any;
+       // Density mapping based on mood
+       if (payload && payload.newMood === 'sleepy') setDensity('low');
+       else if (payload && payload.newMood === 'focused') setDensity('ambient');
+       else setDensity('medium');
+    }
+  }, [events]);
 
   const baseCount = particleCount ?? (isMobile ? 20 : 45);
 

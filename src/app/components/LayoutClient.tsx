@@ -5,6 +5,7 @@ import { useLenis } from '@/app/hooks/useLenis';
 import { useAutonomousLoop } from '@/app/hooks/useAutonomousLoop';
 import { useAtlasBrain } from '@/app/hooks/useAtlasBrain';
 import { useIdleDetection } from '@/app/hooks/useIdleDetection';
+import { useSignalSender } from '@/app/hooks/useSignalSender';
 import { useEffect } from 'react';
 import Navbar from './layout/Navbar';
 import Footer from './layout/Footer';
@@ -52,23 +53,57 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   // ── Atlas 2A: Brain integration ──────────────────────────────
   const brain = useAtlasBrain();
 
+  // ── Phase 2c: Signal Capture Integration ─────────────────────
+  // (We use a hardcoded agentId 'nova' for global layout context; later bound to context)
+  const { dispatchSignal } = useSignalSender('nova');
+
   // ── Idle detection ────────────────────────────────────────────
   useIdleDetection({
     timeoutMs: 5000,
-    onIdle: brain.signalIdle,
-    onActive: () => {
+    onIdle: (idleDurationMs) => {
+      brain.signalIdle();
+      dispatchSignal('user.idle', {
+        subKind: 'user.idle',
+        idleDurationMs,
+        lastActivity: 'none',
+        phase: 'start'
+      });
+    },
+    onActive: (idleDurationMs) => {
       // Brain naturally transitions back via subsequent hover / scroll signals
+      dispatchSignal('user.idle', {
+        subKind: 'user.idle',
+        idleDurationMs,
+        lastActivity: 'none',
+        phase: 'end'
+      });
     },
   });
 
   // ── Scroll detection (debounced) ─────────────────────────────
   useEffect(() => {
     let scrollTimeout: ReturnType<typeof setTimeout>;
+    let lastScrollY = window.scrollY;
 
     const handleScroll = () => {
       clearTimeout(scrollTimeout);
+      const currentScrollY = window.scrollY;
+      const direction = currentScrollY > lastScrollY ? 'down' : 'up';
+      const scrollPercent = (currentScrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+      const velocityPxPerSec = Math.abs(currentScrollY - lastScrollY) / 0.15;
+
       // Debounce: only signal after 150 ms of scroll inactivity
-      scrollTimeout = setTimeout(() => brain.signalScroll(), 150);
+      scrollTimeout = setTimeout(() => {
+        brain.signalScroll();
+        dispatchSignal('user.scroll', {
+          subKind: 'user.scroll',
+          scrollPercent,
+          direction,
+          region: 'main-viewport',
+          velocityPxPerSec
+        });
+      }, 150);
+      lastScrollY = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -76,7 +111,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       window.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [brain.signalScroll]);
+  }, [brain.signalScroll, dispatchSignal]);
 
   return (
     <AgentProvider>

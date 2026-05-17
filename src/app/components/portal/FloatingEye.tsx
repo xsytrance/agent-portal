@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAgent } from '@/app/context/AgentContext';
 import { useReducedMotion } from '@/app/hooks/useReducedMotion';
+import { usePortalEvents } from '@/app/hooks/usePortalEvents';
 import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
 interface FloatingEyeProps {
@@ -14,10 +15,38 @@ interface FloatingEyeProps {
 export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: FloatingEyeProps) {
   const { activeAgent, setChatOpen, agentMessage, isThinking } = useAgent();
   const reducedMotion = useReducedMotion();
+  const { events } = usePortalEvents();
   const eyeRef = useRef<HTMLDivElement>(null);
   const pupilRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [emotion] = useState<'neutral' | 'happy' | 'curious' | 'surprised' | 'sleepy'>('neutral');
+  const [emotion, setEmotion] = useState<'neutral' | 'happy' | 'curious' | 'surprised' | 'sleepy'>('neutral');
+
+  // React to PortalEvents
+  useEffect(() => {
+    const latestEvent = events[events.length - 1];
+    if (!latestEvent) return;
+
+    if (latestEvent.type === 'agent.mood_shift' || latestEvent.type === 'agent.eye_emotion') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payload = latestEvent.metadata as any;
+      if (payload && payload.emotion) {
+         setEmotion(payload.emotion);
+      } else if (latestEvent.type === 'agent.mood_shift') {
+         // Fallback mapping from mood to emotion if not explicit
+         const moodMap: Record<string, typeof emotion> = {
+            curious: 'curious',
+            excited: 'happy',
+            thoughtful: 'neutral',
+            mischievous: 'happy',
+            calm: 'neutral',
+            focused: 'neutral',
+            sleepy: 'sleepy',
+            surprised: 'surprised'
+         };
+         setEmotion(moodMap[payload?.newMood] || 'neutral');
+      }
+    }
+  }, [events]);
   const [isClient, setIsClient] = useState<boolean>(false);
   const mouseRef = useRef({ x: 0, y: 0 });
   const pupilPos = useRef({ x: 0, y: 0 });
