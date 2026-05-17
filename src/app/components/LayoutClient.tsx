@@ -89,7 +89,9 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       clearTimeout(scrollTimeout);
       const currentScrollY = window.scrollY;
       const direction = currentScrollY > lastScrollY ? 'down' : 'up';
-      const scrollPercent = (currentScrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+
+      const scrollHeightDiff = document.body.scrollHeight - window.innerHeight;
+      const scrollPercent = scrollHeightDiff > 0 ? (currentScrollY / scrollHeightDiff) * 100 : 0;
       const velocityPxPerSec = Math.abs(currentScrollY - lastScrollY) / 0.15;
 
       // Debounce: only signal after 150 ms of scroll inactivity

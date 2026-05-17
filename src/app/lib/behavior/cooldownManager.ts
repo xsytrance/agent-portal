@@ -6,6 +6,7 @@ export const DEFAULT_COOLDOWN_DURATIONS: CooldownDurations = {
   'agent.eye_emotion': 5000,
   'agent.mood_shift': 15000,
   'portal.spawn_card': 60000,
+  'portal.demo_action': 60000,
   'portal.repaint': 120000,
   'portal.theme_change': 300000,
   'portal.sound_cue': 10000,

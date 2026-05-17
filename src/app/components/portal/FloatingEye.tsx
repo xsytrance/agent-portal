@@ -28,7 +28,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
 
     if (latestEvent.type === 'agent.mood_shift' || latestEvent.type === 'agent.eye_emotion') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const payload = latestEvent.metadata as any;
+      const payload = latestEvent.payload as any;
       if (payload && payload.emotion) {
          setEmotion(payload.emotion);
       } else if (latestEvent.type === 'agent.mood_shift') {

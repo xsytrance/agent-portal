@@ -77,7 +77,7 @@ export default function ParticleBackground({
 
     if (latestEvent.type === 'portal.silence_mode') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const payload = latestEvent.metadata as any;
+      const payload = latestEvent.payload as any;
       if (payload && payload.mode) {
          // Map internal SilenceModes to the visual targets here
          const map: Record<string, string> = {
@@ -93,7 +93,7 @@ export default function ParticleBackground({
       }
     } else if (latestEvent.type === 'agent.mood_shift') {
        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-       const payload = latestEvent.metadata as any;
+       const payload = latestEvent.payload as any;
        // Density mapping based on mood
        if (payload && payload.newMood === 'sleepy') setDensity('low');
        else if (payload && payload.newMood === 'focused') setDensity('ambient');

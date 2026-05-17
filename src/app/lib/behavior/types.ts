@@ -26,6 +26,7 @@ export type DirectorEventType =
   | 'agent.eye_emotion'
   | 'agent.mood_shift'
   | 'portal.spawn_card'
+  | 'portal.demo_action'
   | 'portal.repaint'
   | 'portal.theme_change'
   | 'portal.sound_cue'
@@ -38,6 +39,7 @@ export type DirectorAction =
   | 'think_aloud'
   | 'eye_react'
   | 'spawn_card'
+  | 'spawn_demo'
   | 'repaint_page'
   | 'play_sound'
   | 'shift_mood'
@@ -156,6 +158,7 @@ export interface CooldownDurations {
   'agent.eye_emotion': number;
   'agent.mood_shift': number;
   'portal.spawn_card': number;
+  'portal.demo_action': number;
   'portal.repaint': number;
   'portal.theme_change': number;
   'portal.sound_cue': number;

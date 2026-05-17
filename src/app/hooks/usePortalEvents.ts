@@ -5,9 +5,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface PortalEvent {
   id: string;
   type: string;
-  message: string;
-  timestamp: number;
+  message?: string;
+  timestamp: number | string;
   agentId?: string;
+  payload?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 }
 

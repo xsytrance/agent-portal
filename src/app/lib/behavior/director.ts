@@ -8,6 +8,7 @@ import {
 import { StateMachine } from './stateMachine';
 import { MoodEngine } from './moodEngine';
 import { CooldownManager } from './cooldownManager';
+import { SurpriseSeeder } from './surprises/surpriseEngine';
 
 export interface DirectorConfig {
   cycleIntervalMs: number;
@@ -22,6 +23,7 @@ export class BehaviorDirector {
   private stateMachine: StateMachine;
   private moodEngine: MoodEngine;
   private cooldownManager: CooldownManager;
+  private surpriseSeeder: SurpriseSeeder;
   private config: DirectorConfig;
 
   private pendingSignals: Signal[] = [];
@@ -40,6 +42,7 @@ export class BehaviorDirector {
     this.stateMachine = new StateMachine();
     this.moodEngine = new MoodEngine();
     this.cooldownManager = new CooldownManager();
+    this.surpriseSeeder = new SurpriseSeeder();
   }
 
   public start() {
@@ -83,6 +86,17 @@ export class BehaviorDirector {
 
     // 3. Autonomous state checks
     this.checkAutonomousTransitions(now);
+
+    // 4. Surprise evaluation
+    const surprise = this.surpriseSeeder.evaluateSurprise(
+      this.state.agentId,
+      now - this.state.lastDecisionTime, // userIdleMs approx
+      this.state.mood.primary
+    );
+
+    if (surprise) {
+        this.executeDecision(surprise);
+    }
   }
 
   private processSignal(signal: Signal) {
