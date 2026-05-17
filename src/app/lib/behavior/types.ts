@@ -33,15 +33,6 @@ export type DirectorEventType =
 
 export type AgentPersonality = 'nova' | 'jinx' | 'atlas';
 
-export type SilenceMode =
-  | 'passive_idle'
-  | 'attentive_idle'
-  | 'deep_thinking'
-  | 'mischief_brewing'
-  | 'sleep_mode'
-  | 'low_power'
-  | 'meditation';
-
 export type DirectorAction =
   | 'respond'
   | 'think_aloud'
@@ -54,12 +45,14 @@ export type DirectorAction =
   | 'wake_up'
   | 'do_nothing';
 
-export interface PlannedEvent {
-  type: DirectorEventType;
-  payload: Record<string, unknown>;
-  delay: number;
-  costTier: CostTier;
-}
+export type SilenceMode =
+  | 'passive_idle'
+  | 'attentive_idle'
+  | 'deep_thinking'
+  | 'mischief_brewing'
+  | 'sleep_mode'
+  | 'low_power'
+  | 'meditation';
 
 export interface Signal {
   id: string;
@@ -78,6 +71,13 @@ export interface PriorityScore {
   cooldownPenalty: number;
   budgetPenalty: number;
   recencyBoost: number;
+}
+
+export interface PlannedEvent {
+  type: DirectorEventType;
+  payload: Record<string, unknown>;
+  delay: number;
+  costTier: CostTier;
 }
 
 export interface DecisionRationale {
@@ -118,27 +118,36 @@ export interface MoodTransition {
 }
 
 export interface MoodState {
-  current: MoodDimension;
+  primary: MoodDimension;
+  secondary: MoodDimension | null;
   intensity: number;
-  decayRate: number;
-  defaultMood: MoodDimension;
-  targetMood: MoodDimension | null;
+  transitionTarget: MoodDimension | null;
   transitionProgress: number;
   modifiers: MoodModifier[];
   lastShiftTime: number;
 }
 
-export interface ActionBudget {
-  total: number;
-  remaining: number;
-  spentByTier: {
-    free: number;
-    low: number;
-    medium: number;
-    high: number;
-  };
-  refillRate: number;
-  isEmergencyMode: boolean;
+export interface PresenceTransition {
+  from: AgentPresenceState;
+  to: AgentPresenceState;
+  timestamp: number;
+  reason: string;
+}
+
+export interface BehaviorDirectorState {
+  sessionId: string;
+  agentId: AgentPersonality;
+  cycleCount: number;
+  sessionStartTime: number;
+  lastDecisionTime: number;
+  presence: AgentPresenceState;
+  presenceSince: number;
+  presenceHistory: PresenceTransition[];
+  mood: MoodState;
+  moodHistory: MoodTransition[];
+  recentActions: BehaviorDecision[];
+  actionCountThisMinute: number;
+  actionCountThisSession: number;
 }
 
 export interface CooldownDurations {
@@ -163,7 +172,9 @@ export interface QuietPeriodState {
 }
 
 export interface CooldownRegistry {
-  lastEmit: { [key in DirectorEventType]?: number };
+  lastEmit: {
+    [key in DirectorEventType]?: number;
+  };
   durations: CooldownDurations;
   globalRateLimit: {
     windowMs: number;
@@ -174,37 +185,17 @@ export interface CooldownRegistry {
   quietPeriod: QuietPeriodState | null;
 }
 
-export interface PresenceTransition {
-  from: AgentPresenceState;
-  to: AgentPresenceState;
-  timestamp: number;
-  trigger: string;
-  guardCondition: string;
-  cycleNumber: number;
-}
-
-export interface BehaviorDirectorState {
-  sessionId: string;
-  agentId: AgentPersonality;
-  cycleCount: number;
-  sessionStartTime: number;
-  lastDecisionTime: number;
-  presence: AgentPresenceState;
-  presenceSince: number;
-  presenceHistory: PresenceTransition[];
-  mood: MoodState;
-  moodHistory: MoodTransition[];
-  recentActions: BehaviorDecision[];
-  actionCountThisMinute: number;
-  actionCountThisSession: number;
-  budget: ActionBudget;
-  cooldowns: CooldownRegistry;
-  quietPeriod: QuietPeriodState | null;
-  pendingSignals: Signal[];
-  lastSignalTime: number;
-  userIdleTime: number;
-  userMessageCount: number;
-  engagementScore: number;
+export interface ActionBudget {
+  total: number;
+  remaining: number;
+  spentByTier: {
+    free: number;
+    low: number;
+    medium: number;
+    high: number;
+  };
+  refillRate: number;
+  isEmergencyMode: boolean;
 }
 
 export interface SilenceTrigger {
@@ -228,46 +219,4 @@ export interface SilenceModeConfig {
   ambientSound: string | null;
   wakeOn: string[];
   wakeMoodShift: MoodDimension | null;
-}
-
-export interface AgentSilenceProfile {
-  agentId: AgentPersonality;
-  preferredModes: SilenceMode[];
-  modeVisuals: {
-    [mode in SilenceMode]?: {
-      eyeDescription: string;
-      particleDescription: string;
-      uniqueCues: string[];
-    };
-  };
-}
-
-export interface DecayEngineConfig {
-  baseDecayPerSecond: number;
-  personalityAnchorStrength: number;
-  transitionSpeed: number;
-}
-
-export interface MoodTrigger {
-  trigger: string;
-  targetMood: MoodDimension;
-  strength: number;
-  duration: number;
-  stackable: boolean;
-  maxStacks: number;
-}
-
-export interface MoodDimensionSpec {
-  dimension: MoodDimension;
-  description: string;
-  initiativeBonus: number;
-  responseSpeed: number;
-  verbosity: number;
-  spectacleAffinity: number;
-  silenceReluctance: number;
-  eyeBehavior: string;
-  particleInfluence: string;
-  colorBias: string | null;
-  preferredActions: DirectorAction[];
-  avoidedActions: DirectorAction[];
 }

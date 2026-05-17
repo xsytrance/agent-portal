@@ -1,80 +1,105 @@
-import { CooldownDurations, CooldownRegistry, AgentPersonality, DirectorEventType, CostTier } from './types';
+import { CooldownRegistry, CooldownDurations, QuietPeriodState, DirectorEventType } from './types';
 
-export const BASE_COOLDOWN_DURATIONS: CooldownDurations = {
-  'agent.message':         1_000,
-  'agent.thinking':          500,
-  'agent.eye_emotion':      5_000,
-  'agent.mood_shift':      15_000,
-  'portal.spawn_card':     60_000,
-  'portal.repaint':       120_000,
-  'portal.theme_change':  300_000,
-  'portal.sound_cue':      10_000,
-  'system.log':                 0,
+export const DEFAULT_COOLDOWN_DURATIONS: CooldownDurations = {
+  'agent.message': 1000,
+  'agent.thinking': 500,
+  'agent.eye_emotion': 5000,
+  'agent.mood_shift': 15000,
+  'portal.spawn_card': 60000,
+  'portal.repaint': 120000,
+  'portal.theme_change': 300000,
+  'portal.sound_cue': 10000,
+  'system.log': 0,
 };
 
-export const AGENT_COOLDOWN_OVERRIDES: Record<AgentPersonality, Partial<CooldownDurations>> = {
-  nova: {
-    'agent.mood_shift':    20_000,
-    'agent.thinking':        800,
-    'portal.spawn_card':   45_000,
-  },
-  jinx: {
-    'agent.eye_emotion':   2_500,
-    'portal.sound_cue':    5_000,
-    'portal.spawn_card':   30_000,
-  },
-  atlas: {
-    'agent.message':       2_000,
-    'agent.eye_emotion':   8_000,
-    'portal.repaint':     180_000,
-    'portal.sound_cue':   15_000,
-  },
-};
+export class CooldownManager {
+  private registry: CooldownRegistry;
 
-export const RATE_LIMIT_CONFIG = {
-  windowMs: 60_000,
-  maxPerWindow: 20,
-  maxHighTierPerWindow: 8,
-  burstAllowance: 5,
-  burstWindowMs: 5_000,
-};
-
-export interface RateLimitState {
-  windowStart: number;
-  actions: Array<{ timestamp: number; tier: CostTier }>;
-}
-
-export function checkCooldowns(
-  registry: CooldownRegistry,
-  rateLimitState: RateLimitState,
-  eventType: DirectorEventType,
-  tier: CostTier,
-  now: number
-): { allowed: boolean; reason?: string } {
-  // 1. Per-event check
-  const lastEmit = registry.lastEmit[eventType];
-  const duration = registry.durations[eventType] || 0;
-  if (lastEmit && (lastEmit + duration > now)) {
-    return { allowed: false, reason: 'cooldown_active' };
+  constructor(customDurations?: Partial<CooldownDurations>) {
+    this.registry = {
+      lastEmit: {},
+      durations: {
+        ...DEFAULT_COOLDOWN_DURATIONS,
+        ...customDurations,
+      },
+      globalRateLimit: {
+        windowMs: 60000,
+        maxPerWindow: 20,
+        currentWindowStart: Date.now(),
+        actionsThisWindow: 0,
+      },
+      quietPeriod: null,
+    };
   }
 
-  // 2. Remove old actions from rate limit window
-  const windowStart = now - RATE_LIMIT_CONFIG.windowMs;
-  rateLimitState.actions = rateLimitState.actions.filter(a => a.timestamp > windowStart);
-
-  // 3. Count
-  const currentCount = rateLimitState.actions.length;
-  const highTierCount = rateLimitState.actions.filter(a => a.tier === 'medium' || a.tier === 'high').length;
-
-  // 4. Rate Limit Check
-  if (currentCount >= RATE_LIMIT_CONFIG.maxPerWindow) {
-    return { allowed: false, reason: 'rate_limited' };
+  public getRegistry(): CooldownRegistry {
+    return this.registry;
   }
 
-  // 5. Tier Budget Check
-  if ((tier === 'medium' || tier === 'high') && highTierCount >= RATE_LIMIT_CONFIG.maxHighTierPerWindow) {
-      return { allowed: false, reason: 'tier_limited' };
+  public isEventReady(eventType: DirectorEventType): boolean {
+    const lastEmit = this.registry.lastEmit[eventType] || 0;
+    const duration = this.registry.durations[eventType];
+    return Date.now() - lastEmit >= duration;
   }
 
-  return { allowed: true };
+  public isGlobalRateLimitExceeded(): boolean {
+    const now = Date.now();
+    const limit = this.registry.globalRateLimit;
+
+    if (now - limit.currentWindowStart >= limit.windowMs) {
+      limit.currentWindowStart = now;
+      limit.actionsThisWindow = 0;
+    }
+
+    return limit.actionsThisWindow >= limit.maxPerWindow;
+  }
+
+  public isQuietPeriodActive(): boolean {
+    if (!this.registry.quietPeriod) {
+      return false;
+    }
+
+    const now = Date.now();
+    const state = this.registry.quietPeriod;
+
+    if (now - state.startedAt >= state.maxDuration) {
+      this.registry.quietPeriod = null; // Auto-clear if expired
+      return false;
+    }
+
+    return true;
+  }
+
+  public canExecute(eventType: DirectorEventType, isEmergencyWake: boolean = false): boolean {
+    if (!isEmergencyWake && this.isQuietPeriodActive()) {
+      return false;
+    }
+
+    if (this.isGlobalRateLimitExceeded()) {
+      return false;
+    }
+
+    return this.isEventReady(eventType);
+  }
+
+  public recordEvent(eventType: DirectorEventType): void {
+    const now = Date.now();
+    this.registry.lastEmit[eventType] = now;
+
+    const limit = this.registry.globalRateLimit;
+    if (now - limit.currentWindowStart >= limit.windowMs) {
+      limit.currentWindowStart = now;
+      limit.actionsThisWindow = 1;
+    } else {
+      limit.actionsThisWindow += 1;
+    }
+  }
+
+  public setQuietPeriod(state: QuietPeriodState): void {
+    this.registry.quietPeriod = state;
+  }
+
+  public clearQuietPeriod(): void {
+    this.registry.quietPeriod = null;
+  }
 }

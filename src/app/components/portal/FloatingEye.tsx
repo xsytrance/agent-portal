@@ -63,7 +63,9 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       const movementRange = eyeBehavior?.movementRange ?? 10;
 
       // ── 3. Partial attention: drift toward secondary target ──
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const partialAttention = (eyeBehavior as any)?.partialAttention;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondaryTarget = (eyeBehavior as any)?.secondaryTarget;
       let targetX = 0;
       let targetY = 0;
@@ -132,6 +134,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       pupilRef.current.style.transform = `translate(${finalX}px, ${finalY}px)`;
 
       // ── 4. Cognition cues: subtle pupil dilation/constriction ──
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cue = (eyeBehavior as any)?.cognitionCue;
       const baseDilation = eyeBehavior?.pupilDilation ?? 1;
       let targetPupilScale = baseDilation;

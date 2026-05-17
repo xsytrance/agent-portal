@@ -86,7 +86,7 @@ function generateId(): string {
 }
 
 function getDefaultAgentConfigs(): AgentConfigData[] {
-  return agents.map((agent: any, index: number) => ({
+  return agents.map((agent, index) => ({
     id: agent.id,
     name: agent.name,
     role: agent.role,
@@ -134,7 +134,7 @@ function getDefaultFeatureFlags(): FeatureFlags {
 }
 
 function getDefaultPromptConfigs(): PromptConfig[] {
-  return agents.map((agent: any) => ({
+  return agents.map((agent) => ({
     agentId: agent.id,
     systemPrompt: `You are ${agent.name}, ${agent.role.toLowerCase()}. ${agent.description}`,
     welcomeMessages: [agent.welcomeMessage],
