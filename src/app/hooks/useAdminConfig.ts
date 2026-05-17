@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { agents } from '@/app/lib/agents/starterAgents';
+import { BudgetConfig } from '@/app/lib/budget/types';
+import { DEFAULT_BUDGET_CONFIG } from '@/app/lib/budget/config';
 
 export interface ApiKey {
   id: string;
@@ -70,6 +72,79 @@ export interface LogEntry {
   message: string;
 }
 
+export interface GlobalPresenceConfig {
+  presenceEnabled: boolean;
+  runtimeModeOverride: 'auto' | 'mock' | 'development' | 'production';
+  globalTokenBudget: number;
+  globalActionRateLimit: number;
+  globalEventRateLimit: number;
+  requireAuthForAdmin: boolean;
+  adminSessionTimeoutMinutes: number;
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+  showMockIndicator: boolean;
+  enableAuditTrail: boolean;
+  emergencyCutoffEnabled: boolean;
+}
+
+export interface SafetyGuardrails {
+  maxAutonomousEventsPerMinute: number;
+  maxLLMCallsPerSession: number;
+  maxLLMCallsPerMinute: number;
+  maxTokensPerSession: number;
+  maxPayloadSizeBytes: number;
+  maxEventsPerSession: number;
+  maxSilenceModeDurationMinutes: number;
+  requireAuthForAdmin: boolean;
+  logAllLLMCalls: boolean;
+  showMockIndicator: boolean;
+  maxProviderErrorsBeforeMock: number;
+  mockFallbackDurationMinutes: number;
+  providerHealthCheckIntervalSeconds: number;
+  rateLimitWindowSeconds: number;
+  maxRequestsPerWindow: number;
+  maxSessionDurationMinutes: number;
+  maxConcurrentSessions: number;
+  blockRepeatedPayloads: boolean;
+  repeatedPayloadWindowSeconds: number;
+}
+
+export interface AlertConfig {
+  enabled: boolean;
+  budgetWarningPercentages: number[];
+  rateLimitWarningEnabled: boolean;
+  providerErrorAlertThreshold: number;
+  unusualActivityEnabled: boolean;
+  unusualActivityThresholdSigma: number;
+  alertDeliveryMethods: string[];
+  webhookUrl?: string;
+  emailRecipients?: string[];
+  alertCooldownSeconds: number;
+  activityBaselineWindowMinutes: number;
+}
+
+export interface SessionConfig {
+  sessionTimeoutMinutes: number;
+  maxSessionDurationMinutes: number;
+  enableCostSummary: boolean;
+  allowForceEnd: boolean;
+  maxSessionHistoryCount: number;
+  persistSessionHistory: boolean;
+  sessionCostDisplayPrecision: number;
+}
+
+export interface AuditConfig {
+  enabled: boolean;
+  logLLMCalls: boolean;
+  logAutonomousEvents: boolean;
+  logConfigChanges: boolean;
+  logProviderErrors: boolean;
+  detailedRetentionDays: number;
+  summaryRetentionDays: number;
+  logRotationEnabled: boolean;
+  maxLogFileSizeMB: number;
+  auditLogPath: string;
+}
+
 export interface AdminConfig {
   apiKeys: ApiKey[];
   agentConfigs: AgentConfigData[];
@@ -77,6 +152,12 @@ export interface AdminConfig {
   featureFlags: FeatureFlags;
   promptConfigs: PromptConfig[];
   logs: LogEntry[];
+  globalPresence: GlobalPresenceConfig;
+  budget: BudgetConfig;
+  safety: SafetyGuardrails;
+  alerts: AlertConfig;
+  sessions: SessionConfig;
+  audit: AuditConfig;
 }
 
 const STORAGE_KEY = 'agent-portal-config';
@@ -234,6 +315,73 @@ function getDefaultConfig(): AdminConfig {
     featureFlags: getDefaultFeatureFlags(),
     promptConfigs: getDefaultPromptConfigs(),
     logs: getDefaultLogs(),
+    globalPresence: {
+      presenceEnabled: true,
+      runtimeModeOverride: 'auto',
+      globalTokenBudget: 1000000,
+      globalActionRateLimit: 120,
+      globalEventRateLimit: 30,
+      requireAuthForAdmin: true,
+      adminSessionTimeoutMinutes: 30,
+      logLevel: 'info',
+      showMockIndicator: true,
+      enableAuditTrail: true,
+      emergencyCutoffEnabled: true,
+    },
+    budget: DEFAULT_BUDGET_CONFIG,
+    safety: {
+      maxAutonomousEventsPerMinute: 10,
+      maxLLMCallsPerSession: 50,
+      maxLLMCallsPerMinute: 20,
+      maxTokensPerSession: 100000,
+      maxPayloadSizeBytes: 65536,
+      maxEventsPerSession: 100,
+      maxSilenceModeDurationMinutes: 60,
+      requireAuthForAdmin: true,
+      logAllLLMCalls: true,
+      showMockIndicator: true,
+      maxProviderErrorsBeforeMock: 3,
+      mockFallbackDurationMinutes: 10,
+      providerHealthCheckIntervalSeconds: 60,
+      rateLimitWindowSeconds: 60,
+      maxRequestsPerWindow: 100,
+      maxSessionDurationMinutes: 120,
+      maxConcurrentSessions: 10,
+      blockRepeatedPayloads: true,
+      repeatedPayloadWindowSeconds: 30,
+    },
+    alerts: {
+      enabled: true,
+      budgetWarningPercentages: [50, 75, 90],
+      rateLimitWarningEnabled: true,
+      providerErrorAlertThreshold: 3,
+      unusualActivityEnabled: true,
+      unusualActivityThresholdSigma: 3.0,
+      alertDeliveryMethods: ['admin-log'],
+      alertCooldownSeconds: 300,
+      activityBaselineWindowMinutes: 60,
+    },
+    sessions: {
+      sessionTimeoutMinutes: 30,
+      maxSessionDurationMinutes: 120,
+      enableCostSummary: true,
+      allowForceEnd: true,
+      maxSessionHistoryCount: 50,
+      persistSessionHistory: false,
+      sessionCostDisplayPrecision: 4,
+    },
+    audit: {
+      enabled: true,
+      logLLMCalls: true,
+      logAutonomousEvents: true,
+      logConfigChanges: true,
+      logProviderErrors: true,
+      detailedRetentionDays: 7,
+      summaryRetentionDays: 30,
+      logRotationEnabled: true,
+      maxLogFileSizeMB: 100,
+      auditLogPath: 'logs/audit/',
+    },
   };
 }
 
@@ -242,7 +390,18 @@ function loadConfig(): AdminConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...getDefaultConfig(), ...parsed };
+      // Deep merge default objects to avoid crashes on new keys when restoring local storage
+      const defaults = getDefaultConfig();
+      return {
+          ...defaults,
+          ...parsed,
+          globalPresence: { ...defaults.globalPresence, ...parsed.globalPresence },
+          budget: { ...defaults.budget, ...parsed.budget },
+          safety: { ...defaults.safety, ...parsed.safety },
+          alerts: { ...defaults.alerts, ...parsed.alerts },
+          sessions: { ...defaults.sessions, ...parsed.sessions },
+          audit: { ...defaults.audit, ...parsed.audit },
+      };
     }
   } catch {
     // ignore parse errors
@@ -285,6 +444,26 @@ export function useAdminConfig() {
     setConfig((prev) => ({ ...prev, promptConfigs: prompts }));
   }, []);
 
+  const setGlobalPresence = useCallback((presence: GlobalPresenceConfig) => {
+    setConfig((prev) => ({ ...prev, globalPresence: presence }));
+  }, []);
+
+  const setBudgetConfig = useCallback((budget: BudgetConfig) => {
+    setConfig((prev) => ({ ...prev, budget }));
+  }, []);
+
+  const setSafetyGuardrails = useCallback((safety: SafetyGuardrails) => {
+    setConfig((prev) => ({ ...prev, safety }));
+  }, []);
+
+  const setAlertConfig = useCallback((alerts: AlertConfig) => {
+    setConfig((prev) => ({ ...prev, alerts }));
+  }, []);
+
+  const setSessionConfig = useCallback((sessions: SessionConfig) => {
+    setConfig((prev) => ({ ...prev, sessions }));
+  }, []);
+
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     const newEntry: LogEntry = {
       ...entry,
@@ -312,6 +491,11 @@ export function useAdminConfig() {
     setAutonomousConfig,
     setFeatureFlags,
     setPromptConfigs,
+    setGlobalPresence,
+    setBudgetConfig,
+    setSafetyGuardrails,
+    setAlertConfig,
+    setSessionConfig,
     addLog,
     clearLogs,
     resetToDefaults,

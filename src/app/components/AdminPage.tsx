@@ -13,6 +13,12 @@ import {
   FileText,
   List,
   ArrowLeft,
+  Settings,
+  Banknote,
+  ShieldAlert,
+  BellRing,
+  Activity,
+  History,
 } from 'lucide-react';
 
 import ApiKeysPanel from '@/app/components/admin/ApiKeysPanel';
@@ -21,22 +27,32 @@ import AutonomousLoopPanel from '@/app/components/admin/AutonomousLoopPanel';
 import FeaturesPanel from '@/app/components/admin/FeaturesPanel';
 import PromptsPanel from '@/app/components/admin/PromptsPanel';
 import LogsPanel from '@/app/components/admin/LogsPanel';
+import PresenceSettingsPanel from '@/app/components/admin/PresenceSettingsPanel';
+import BudgetControlsPanel from '@/app/components/admin/BudgetControlsPanel';
+import SafetyGuardrailsPanel from '@/app/components/admin/SafetyGuardrailsPanel';
+import AlertsPanel from '@/app/components/admin/AlertsPanel';
 
-type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'features' | 'prompts' | 'logs';
+type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'presence' | 'budget' | 'safety' | 'features' | 'prompts' | 'alerts' | 'audit' | 'sessions' | 'logs';
 
 interface SidebarItem {
   key: PanelKey;
   label: string;
   icon: typeof Key;
-  section: 'configuration' | 'system';
+  section: 'configuration' | 'safety' | 'system';
 }
 
 const sidebarItems: SidebarItem[] = [
   { key: 'apikeys', label: 'API Keys', icon: Key, section: 'configuration' },
   { key: 'agents', label: 'Agent Config', icon: Bot, section: 'configuration' },
   { key: 'autonomous', label: 'Autonomous Loop', icon: Zap, section: 'configuration' },
+  { key: 'presence', label: 'Presence Settings', icon: Settings, section: 'configuration' },
+  { key: 'budget', label: 'Budget Controls', icon: Banknote, section: 'safety' },
+  { key: 'safety', label: 'Safety Guardrails', icon: ShieldAlert, section: 'safety' },
   { key: 'features', label: 'Features', icon: Sparkles, section: 'configuration' },
   { key: 'prompts', label: 'Prompts', icon: FileText, section: 'system' },
+  { key: 'alerts', label: 'Alerts', icon: BellRing, section: 'system' },
+  { key: 'sessions', label: 'Session Mgmt', icon: Activity, section: 'system' },
+  { key: 'audit', label: 'Audit Trail', icon: History, section: 'system' },
   { key: 'logs', label: 'Logs', icon: List, section: 'system' },
 ];
 
@@ -51,6 +67,10 @@ export default function Admin() {
     setAutonomousConfig,
     setFeatureFlags,
     setPromptConfigs,
+    setGlobalPresence,
+    setBudgetConfig,
+    setSafetyGuardrails,
+    setAlertConfig,
     clearLogs,
   } = useAdminConfig();
 
@@ -78,6 +98,18 @@ export default function Admin() {
         return <PromptsPanel promptConfigs={config.promptConfigs} onChange={setPromptConfigs} />;
       case 'logs':
         return <LogsPanel logs={config.logs} onClear={clearLogs} />;
+      case 'presence':
+        return <PresenceSettingsPanel config={config.globalPresence} onChange={setGlobalPresence} />;
+      case 'budget':
+        return <BudgetControlsPanel config={config.budget} onChange={setBudgetConfig} />;
+      case 'safety':
+        return <SafetyGuardrailsPanel config={config.safety} onChange={setSafetyGuardrails} />;
+      case 'alerts':
+        return <AlertsPanel config={config.alerts} onChange={setAlertConfig} />;
+      case 'audit':
+        return <div className="p-6 text-gray-500">Audit Trail Panel (Placeholder)</div>;
+      case 'sessions':
+        return <div className="p-6 text-gray-500">Session Mgmt Panel (Placeholder)</div>;
       default:
         return null;
     }
@@ -89,6 +121,10 @@ export default function Admin() {
     setAutonomousConfig,
     setFeatureFlags,
     setPromptConfigs,
+    setGlobalPresence,
+    setBudgetConfig,
+    setSafetyGuardrails,
+    setAlertConfig,
     clearLogs,
   ]);
 
