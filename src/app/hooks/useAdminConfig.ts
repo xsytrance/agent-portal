@@ -135,7 +135,8 @@ function getDefaultFeatureFlags(): FeatureFlags {
 }
 
 function getDefaultPromptConfigs(): PromptConfig[] {
-  return agentsData.map((agent) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return agentsData.map((agent: any) => ({
     agentId: agent.id,
     systemPrompt: `You are ${agent.name}, ${agent.role.toLowerCase()}. ${agent.description}`,
     welcomeMessages: [agent.welcomeMessage],

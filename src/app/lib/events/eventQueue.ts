@@ -1,31 +1,57 @@
-import { BehaviorPlan } from '../behavior/behaviorTypes';
+import { PlannedEvent } from '../behavior/types';
 
-export class EventQueue {
+export type PlanStatus = 'pending' | 'executing' | 'completed' | 'cancelled' | 'expired';
+export type CooldownKey = string;
+
+export interface InputSignalSummary {
+  id: string;
+  type: string;
+}
+
+export interface BehaviorPlan {
+  id: string;
+  reason: string;
+  priority: number;
+  delayMs: number;
+  deadlineMs: number;
+  requiresLLM: boolean;
+  tokenCostEstimate: 'free' | 'cheap' | 'expensive';
+  cooldownKey: CooldownKey;
+  sourceSignal: InputSignalSummary;
+  targetAgentId: string;
+  status: PlanStatus;
+  events: PlannedEvent[];
+}
+
+export class BehaviorEventQueue {
   private queue: BehaviorPlan[] = [];
 
-  public enqueue(plan: BehaviorPlan): void {
+  public enqueue(plan: BehaviorPlan) {
+    plan.status = 'pending';
     this.queue.push(plan);
-    // Maintain sorted order (highest priority first)
-    this.queue.sort((a, b) => b.priority - a.priority);
+    // Sort descending by priority so that highest priority is at the end (for pop())
+    this.queue.sort((a, b) => a.priority - b.priority);
   }
 
-  public dequeue(): BehaviorPlan | undefined {
-    return this.queue.shift();
+  public dequeue(): BehaviorPlan | null {
+    if (this.queue.length === 0) return null;
+
+    // Pop the highest priority plan
+    const plan = this.queue.pop()!;
+    plan.status = 'executing';
+    return plan;
   }
 
-  public peek(): BehaviorPlan | undefined {
-    return this.queue[0];
+  public peek(): BehaviorPlan | null {
+      if (this.queue.length === 0) return null;
+      return this.queue[this.queue.length - 1];
   }
 
-  public removeBySource(sourceEventId: string): void {
-    this.queue = this.queue.filter(plan => plan.sourceEventId !== sourceEventId);
+  public getPendingCount(): number {
+      return this.queue.length;
   }
 
-  public clear(): void {
-    this.queue = [];
-  }
-
-  public get length(): number {
-    return this.queue.length;
+  public clear() {
+      this.queue = [];
   }
 }
