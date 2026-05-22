@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import crypto from 'crypto';
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -20,7 +21,16 @@ export function middleware(request: NextRequest) {
 
     const expectedAuth = 'Basic ' + Buffer.from(`admin:${expectedPassword}`).toString('base64');
 
-    if (authHeader !== expectedAuth) {
+    let isAuthorized = false;
+    if (authHeader) {
+      const a = Buffer.from(authHeader);
+      const b = Buffer.from(expectedAuth);
+      if (a.length === b.length) {
+        isAuthorized = crypto.timingSafeEqual(a, b);
+      }
+    }
+
+    if (!isAuthorized) {
       return new NextResponse('Unauthorized', {
         status: 401,
         headers: { 'WWW-Authenticate': 'Basic realm="Agent Portal Admin"' },
