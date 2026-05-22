@@ -9,8 +9,8 @@
  * ```tsx
  * const { isIdle } = useIdleDetection({
  *   timeoutMs: 5000,
- *   onIdle: () => console.log('user went idle'),
- *   onActive: () => console.log('user returned'),
+ *   onIdle: () => { /* Handle user going idle */ },
+ *   onActive: () => { /* Handle user returning */ },
  * });
  *
  * // Later:
