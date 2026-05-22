@@ -1,7 +1,10 @@
-import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier } from './types';
+import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier, AgentBudgetAllocation } from './types';
 import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
 import { resolveFallback, FALLBACK_CHAIN } from './degradation';
 import { estimateCost } from './utils';
+
+// Cache for O(1) lookups of agent budgets by config reference
+const configAgentBudgetsCache = new WeakMap<BudgetConfig, Map<string, AgentBudgetAllocation>>();
 
 // Helper mock to replace complex real cache checking for now
 function hasValidCacheEntry(eventType: string): boolean {
@@ -143,17 +146,29 @@ export function selectProvider(
 
     // Rule 11: Per-agent budget check
     if (config.features.enablePerAgentBudgets) {
-      const agentBudget = config.agentBudgets.find(a => a.agentId === budget.agentSpending[0]?.agentId);
-      if (agentBudget && agentBudget.maxTokensPerSession > 0) {
-        const agentSpent = budget.agentSpending.find(a => a.agentId === agentBudget.agentId)?.tokensUsed || 0;
-        if (agentSpent >= agentBudget.maxTokensPerSession) {
-          return {
-            provider: 'template',
-            reason: `Agent "\${agentBudget.agentId}" budget exceeded -- template fallback`,
-            tier,
-            estimatedTokens: 0,
-            estimatedCost: 0,
-          };
+      let agentBudgetsMap = configAgentBudgetsCache.get(config);
+      if (!agentBudgetsMap) {
+        agentBudgetsMap = new Map();
+        for (let i = 0; i < config.agentBudgets.length; i++) {
+          agentBudgetsMap.set(config.agentBudgets[i].agentId, config.agentBudgets[i]);
+        }
+        configAgentBudgetsCache.set(config, agentBudgetsMap);
+      }
+
+      if (budget.agentSpending.length > 0) {
+        const primaryAgentSpending = budget.agentSpending[0];
+        const agentBudget = agentBudgetsMap.get(primaryAgentSpending.agentId);
+
+        if (agentBudget && agentBudget.maxTokensPerSession > 0) {
+          if (primaryAgentSpending.tokensUsed >= agentBudget.maxTokensPerSession) {
+            return {
+              provider: 'template',
+              reason: `Agent "${agentBudget.agentId}" budget exceeded -- template fallback`,
+              tier,
+              estimatedTokens: 0,
+              estimatedCost: 0,
+            };
+          }
         }
       }
     }
