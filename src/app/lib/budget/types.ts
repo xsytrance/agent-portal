@@ -251,7 +251,7 @@ export interface AlertChannel {
 
 export interface CostLogFilters {
   // Add specific filter fields if needed in the future
-  [key: string]: any;
+  [key: string]: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface ActiveSessionView {
