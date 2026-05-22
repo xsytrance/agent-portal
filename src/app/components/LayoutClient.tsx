@@ -39,8 +39,7 @@ function AgentBrainSync({ brain }: { brain: ReturnType<typeof useAtlasBrain> }) 
   useEffect(() => {
     // Notify brain whenever the active agent changes
     brain.signalAgentSwitch(activeAgent.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAgent.id]);
+  }, [activeAgent.id, brain]);
 
   return null;
 }
@@ -76,7 +75,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       window.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [brain.signalScroll]);
+  }, [brain]);
 
   return (
     <AgentProvider>
