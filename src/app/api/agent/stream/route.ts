@@ -10,7 +10,7 @@ const MAX_DURATION_MS = 5 * 60 * 1000;
 export async function GET() {
   await info('sse', 'New client connected', { route: '/api/agent/stream' });
   const encoder = new TextEncoder();
-  const clientId = Math.random().toString(36).substring(2, 10);
+  const clientId = crypto.randomUUID();
   let eventCount = 0;
   let lastActivity = Date.now();
   let closed = false;
