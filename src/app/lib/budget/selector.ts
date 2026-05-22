@@ -1,15 +1,10 @@
-import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier } from './types';
+import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision } from './types';
 import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
 import { resolveFallback, FALLBACK_CHAIN } from './degradation';
 import { estimateCost } from './utils';
 
-// Helper mock to replace complex real cache checking for now
-function hasValidCacheEntry(eventType: string): boolean {
-    return false;
-}
-
 // Helper mock to replace complex rate limit checking logic for now
-function wouldExceedRateLimit(budget: TokenBudget, config: BudgetConfig): boolean {
+function wouldExceedRateLimit(_budget: TokenBudget, _config: BudgetConfig): boolean {
     return false;
 }
 
@@ -92,17 +87,6 @@ export function selectProvider(
 
   // Rules 7-12: Expensive events -- budget-aware selection
   if (tier === 'expensive') {
-    // Check cache first (Rule 7)
-    if (registry?.cacheable && hasValidCacheEntry(eventType)) {
-      return {
-        provider: 'cache',
-        reason: 'Cache hit -- serving cached response',
-        tier,
-        estimatedTokens: 0,
-        estimatedCost: 0,
-      };
-    }
-
     // Rule 8: Critical status
     if (budget.status === 'critical') {
       const fallback = resolveFallback(eventType, budget, config);
