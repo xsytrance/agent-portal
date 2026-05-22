@@ -237,14 +237,16 @@ export default function ParticleBackground({
 
       // Draw connections (using lerped opacity)
       const connectionDist = 150;
+      const connectionDistSq = connectionDist * connectionDist;
       for (let i = 0; i < particlesRef.current.length; i++) {
         for (let j = i + 1; j < particlesRef.current.length; j++) {
           const a = particlesRef.current[i];
           const b = particlesRef.current[j];
           const dx = a.x - b.x;
           const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connectionDist) {
+          const distSq = dx * dx + dy * dy;
+          if (distSq < connectionDistSq) {
+            const dist = Math.sqrt(distSq);
             const alpha = (1 - dist / connectionDist) * cm.connectionOpacity;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
