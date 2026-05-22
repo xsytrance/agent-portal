@@ -22,12 +22,12 @@ async function ensureOpenRouterProvider(): Promise<void> {
 
 function createMockResponse(message: string, agentId: string): { response: string; mock: true } {
   const responses: Record<string, string> = {
-    nova: `Professor Nova here! You asked about "${message.slice(0, 60)}..." Let me analyze that. *beep boop* Fascinating!`,
-    jinx: `POOF! Jinx answers "${message.slice(0, 60)}..." with MAGIC! *confetti* Was that helpful?`,
-    atlas: `I've processed "${message.slice(0, 60)}..." Here is my concise analysis: excellent question.`,
+    nova: `Professor Nova here! You asked about your request. Let me analyze that. *beep boop* Fascinating!`,
+    jinx: `POOF! Jinx answers your request with MAGIC! *confetti* Was that helpful?`,
+    atlas: `I've processed your request. Here is my concise analysis: excellent question.`,
   };
   return {
-    response: responses[agentId] || `[Demo Mode] Agent ${agentId} received: "${message}". OpenRouter not configured.`,
+    response: responses[agentId] || `[Demo Mode] Agent ${agentId} received your message. OpenRouter not configured.`,
     mock: true,
   };
 }
