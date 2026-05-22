@@ -237,14 +237,27 @@ export default function ParticleBackground({
 
       // Draw connections (using lerped opacity)
       const connectionDist = 150;
+      const connectionDistSq = connectionDist * connectionDist;
+
+      // 1D Spatial Partitioning: sort particles by x-coordinate to allow early breaking
+      particlesRef.current.sort((a, b) => a.x - b.x);
+
       for (let i = 0; i < particlesRef.current.length; i++) {
+        const a = particlesRef.current[i];
         for (let j = i + 1; j < particlesRef.current.length; j++) {
-          const a = particlesRef.current[i];
           const b = particlesRef.current[j];
-          const dx = a.x - b.x;
+          const dx = b.x - a.x; // b.x is always >= a.x because of sort
+
+          // Early break: if x distance is greater than connection distance,
+          // no subsequent particles can be close enough
+          if (dx > connectionDist) break;
+
           const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connectionDist) {
+          if (dy > connectionDist || dy < -connectionDist) continue;
+
+          const distSq = dx * dx + dy * dy;
+          if (distSq < connectionDistSq) {
+            const dist = Math.sqrt(distSq);
             const alpha = (1 - dist / connectionDist) * cm.connectionOpacity;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
