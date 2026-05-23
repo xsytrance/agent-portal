@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
     (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) &&
     !pathname.startsWith('/admin/_next')
   ) {
-    const authHeader = request.headers.get('authorization');
+    const authHeader = request.headers.get('authorization') || '';
     const expectedPassword = process.env.ADMIN_PASSWORD;
 
     if (!expectedPassword) {
