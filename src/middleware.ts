@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
 
     const expectedAuth = 'Basic ' + Buffer.from(`admin:${expectedPassword}`).toString('base64');
 
-    if (authHeader !== expectedAuth) {
+    if (!authHeader || !secureCompare(authHeader, expectedAuth)) {
       return new NextResponse('Unauthorized', {
         status: 401,
         headers: { 'WWW-Authenticate': 'Basic realm="Agent Portal Admin"' },
@@ -29,6 +29,20 @@ export function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+/**
+ * Constant-time string comparison to prevent timing attacks.
+ */
+export function secureCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 export const config = {
