@@ -8,15 +8,10 @@ export function shouldSuppressAlert(
   const cooldownMs = config.alertSettings.cooldownMinutes * 60 * 1000;
   const now = Date.now();
 
-  for (const existing of recentAlerts) {
-    if (
+  return recentAlerts.some(
+    (existing) =>
       existing.sessionId === newAlert.sessionId &&
       existing.type === newAlert.type &&
       (now - new Date(existing.triggeredAt).getTime()) < cooldownMs
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  );
 }
