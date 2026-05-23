@@ -49,52 +49,32 @@ export interface AtlasBrainAPI {
   sendSignal: (type: BehaviorSignal['type'], payload?: Record<string, unknown>) => BehaviorDecision | undefined;
 }
 
-// ── Internal Hook: State Management ───────────────────────────────
-function useAtlasBrainState(brainRef: React.MutableRefObject<AtlasBrain | null>) {
+function useAtlasBrainState() {
   const [state, setState] = useState<AtlasState | null>(null);
   const [decision, setDecision] = useState<BehaviorDecision | null>(null);
   const [rareReady, setRareReady] = useState(false);
   const rareEventRef = useRef<boolean>(false);
 
-  const applyDecision = useCallback((d: BehaviorDecision) => {
+  const updateFromDecision = useCallback((d: BehaviorDecision, currentState: AtlasState) => {
     setDecision(d);
-    if (brainRef.current) {
-      setState(brainRef.current.getState());
-    }
-
+    setState(currentState);
     const hasRare = !!d.rareEventTrigger;
     setRareReady(hasRare);
     if (d.rareEventTrigger) {
       rareEventRef.current = d.rareEventTrigger;
     }
-  }, [brainRef]);
-
-  const consumeRareEvent = useCallback((): boolean => {
-    const ev = rareEventRef.current;
-    rareEventRef.current = false;
-    setRareReady(false);
-    return ev;
   }, []);
 
-  return {
-    state,
-    decision,
-    rareReady,
-    rareEventRef,
-    setState,
-    setDecision,
-    setRareReady,
-    applyDecision,
-    consumeRareEvent,
-  };
+  return { state, decision, rareReady, rareEventRef, setRareReady, updateFromDecision };
 }
 
-// ── Internal Hook: Tick Loop ──────────────────────────────────────
-function useAtlasBrainTick(
-  brainRef: React.MutableRefObject<AtlasBrain | null>,
-  applyDecision: (d: BehaviorDecision) => void,
-  setState: React.Dispatch<React.SetStateAction<AtlasState | null>>
-) {
+export function useAtlasBrain(): AtlasBrainAPI {
+  const brainRef = useRef<AtlasBrain | null>(null);
+
+  // React state and update logic
+  const { state, decision, rareReady, rareEventRef, setRareReady, updateFromDecision } = useAtlasBrainState();
+
+  // Refs for the tick loop
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -103,13 +83,11 @@ function useAtlasBrainTick(
     brainRef.current = new AtlasBrain();
 
     // Prime initial state
-    const initialState = brainRef.current.getState();
     const initialDecision = brainRef.current.tick({
       type: 'TICK',
       timestamp: Date.now(),
     });
-    setState(initialState);
-    applyDecision(initialDecision);
+    updateFromDecision(initialDecision, brainRef.current.getState());
 
     // Tick loop: every 500 ms
     tickRef.current = setInterval(() => {
@@ -119,7 +97,7 @@ function useAtlasBrainTick(
         type: 'TICK',
         timestamp: Date.now(),
       });
-      applyDecision(d);
+      updateFromDecision(d, brainRef.current.getState());
     }, 500);
 
     return () => {
@@ -129,8 +107,7 @@ function useAtlasBrainTick(
       }
       brainRef.current = null;
     };
-  }, [applyDecision, setState, brainRef]);
-}
+  }, [updateFromDecision]);
 
 // ── Internal Hook: Signals ────────────────────────────────────────
 function useAtlasBrainSignals(
@@ -151,10 +128,11 @@ function useAtlasBrainSignals(
       };
 
       const d = brainRef.current.tick(signal);
-      applyDecision(d);
+      updateFromDecision(d, brainRef.current.getState());
+
       return d;
     },
-    [brainRef, applyDecision],
+    [updateFromDecision],
   );
 
   const signalIdle = useCallback(() => sendSignal('IDLE'), [sendSignal]);
@@ -166,38 +144,13 @@ function useAtlasBrainSignals(
     [sendSignal],
   );
 
-  return {
-    sendSignal,
-    signalIdle,
-    signalHover,
-    signalScroll,
-    signalChat,
-    signalAgentSwitch,
-  };
-}
-
-export function useAtlasBrain(): AtlasBrainAPI {
-  const brainRef = useRef<AtlasBrain | null>(null);
-
-  const {
-    state,
-    decision,
-    rareReady,
-    setState,
-    applyDecision,
-    consumeRareEvent,
-  } = useAtlasBrainState(brainRef);
-
-  useAtlasBrainTick(brainRef, applyDecision, setState);
-
-  const {
-    sendSignal,
-    signalIdle,
-    signalHover,
-    signalScroll,
-    signalChat,
-    signalAgentSwitch,
-  } = useAtlasBrainSignals(brainRef, applyDecision);
+  // ── Rare event consumption ──────────────────────────────────────
+  const consumeRareEvent = useCallback((): boolean => {
+    const ev = rareEventRef.current;
+    rareEventRef.current = false;
+    setRareReady(false);
+    return ev;
+  }, [rareEventRef, setRareReady]);
 
   return {
     state,
