@@ -77,9 +77,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
   // Refs for the tick loop
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Initialise brain & tick loop ────────────────────────────────
   useEffect(() => {
-    // Guard against double-init in React StrictMode
     if (brainRef.current) return;
 
     brainRef.current = new AtlasBrain();
@@ -111,7 +109,11 @@ export function useAtlasBrain(): AtlasBrainAPI {
     };
   }, [updateFromDecision]);
 
-  // ── Send any signal to the brain ────────────────────────────────
+// ── Internal Hook: Signals ────────────────────────────────────────
+function useAtlasBrainSignals(
+  brainRef: React.MutableRefObject<AtlasBrain | null>,
+  applyDecision: (d: BehaviorDecision) => void
+) {
   const sendSignal = useCallback(
     (
       type: BehaviorSignal['type'],
@@ -133,23 +135,10 @@ export function useAtlasBrain(): AtlasBrainAPI {
     [updateFromDecision],
   );
 
-  // ── Typed signal shortcuts ──────────────────────────────────────
-  const signalIdle = useCallback(
-    () => sendSignal('IDLE'),
-    [sendSignal],
-  );
-  const signalHover = useCallback(
-    (target: string) => sendSignal('HOVER', { target }),
-    [sendSignal],
-  );
-  const signalScroll = useCallback(
-    () => sendSignal('SCROLL'),
-    [sendSignal],
-  );
-  const signalChat = useCallback(
-    () => sendSignal('CHAT'),
-    [sendSignal],
-  );
+  const signalIdle = useCallback(() => sendSignal('IDLE'), [sendSignal]);
+  const signalHover = useCallback((target: string) => sendSignal('HOVER', { target }), [sendSignal]);
+  const signalScroll = useCallback(() => sendSignal('SCROLL'), [sendSignal]);
+  const signalChat = useCallback(() => sendSignal('CHAT'), [sendSignal]);
   const signalAgentSwitch = useCallback(
     (agentId?: string) => sendSignal('AGENT_SWITCH', agentId ? { agentId } : undefined),
     [sendSignal],
