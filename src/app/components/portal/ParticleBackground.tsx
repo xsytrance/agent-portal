@@ -149,7 +149,16 @@ export default function ParticleBackground({
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-    const updateState = (canvas: HTMLCanvasElement) => {
+    const connectionDist = 150;
+    const connectionDistSq = connectionDist * connectionDist;
+
+    let head = new Int32Array(0);
+    let next = new Int32Array(0);
+
+    const animate = () => {
+      if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
       // Lerp color over 1.2s
       const elapsed = Date.now() - lastColorUpdateRef.current;
       const colorT = Math.min(elapsed / 1200, 1);
@@ -232,36 +241,73 @@ export default function ParticleBackground({
         });
       }
 
-      return { baseRgb, glowRgb };
-    };
+      // Draw connections (using lerped opacity) with spatial hashing
+      const particles = particlesRef.current;
+      const numParticles = particles.length;
 
-    const drawState = (
-      ctx: CanvasRenderingContext2D,
-      canvas: HTMLCanvasElement,
-      baseRgb: { r: number; g: number; b: number },
-      glowRgb: { r: number; g: number; b: number }
-    ) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cols = Math.ceil(canvas.width / connectionDist);
+      const rows = Math.ceil(canvas.height / connectionDist);
+      const totalCells = cols * rows;
 
-      const cm = currentMoodRef.current;
-      const connectionDist = 150;
+      if (head.length < totalCells) {
+        head = new Int32Array(totalCells);
+      }
+      if (next.length < numParticles) {
+        next = new Int32Array(numParticles);
+      }
 
-      // Draw connections (using lerped opacity)
-      for (let i = 0; i < particlesRef.current.length; i++) {
-        for (let j = i + 1; j < particlesRef.current.length; j++) {
-          const a = particlesRef.current[i];
-          const b = particlesRef.current[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < connectionDist) {
-            const alpha = (1 - dist / connectionDist) * cm.connectionOpacity;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(${glowRgb.r},${glowRgb.g},${glowRgb.b},${alpha})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
+      head.fill(-1, 0, totalCells);
+
+      for (let i = 0; i < numParticles; i++) {
+        const p = particles[i];
+        let cx = Math.floor(p.x / connectionDist);
+        let cy = Math.floor(p.y / connectionDist);
+
+        if (cx < 0) cx = 0; else if (cx >= cols) cx = cols - 1;
+        if (cy < 0) cy = 0; else if (cy >= rows) cy = rows - 1;
+
+        const cellIndex = cy * cols + cx;
+        next[i] = head[cellIndex];
+        head[cellIndex] = i;
+      }
+
+      for (let i = 0; i < numParticles; i++) {
+        const a = particles[i];
+        let cx = Math.floor(a.x / connectionDist);
+        let cy = Math.floor(a.y / connectionDist);
+
+        if (cx < 0) cx = 0; else if (cx >= cols) cx = cols - 1;
+        if (cy < 0) cy = 0; else if (cy >= rows) cy = rows - 1;
+
+        const minX = cx > 0 ? cx - 1 : 0;
+        const maxX = cx < cols - 1 ? cx + 1 : cols - 1;
+        const minY = cy > 0 ? cy - 1 : 0;
+        const maxY = cy < rows - 1 ? cy + 1 : rows - 1;
+
+        for (let ny = minY; ny <= maxY; ny++) {
+          const rowOffset = ny * cols;
+          for (let nx = minX; nx <= maxX; nx++) {
+            let j = head[rowOffset + nx];
+            while (j !== -1) {
+              if (i < j) {
+                const b = particles[j];
+                const dx = a.x - b.x;
+                const dy = a.y - b.y;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq < connectionDistSq) {
+                  const dist = Math.sqrt(distSq);
+                  const alpha = (1 - dist / connectionDist) * cm.connectionOpacity;
+                  ctx.beginPath();
+                  ctx.moveTo(a.x, a.y);
+                  ctx.lineTo(b.x, b.y);
+                  ctx.strokeStyle = `rgba(${glowRgb.r},${glowRgb.g},${glowRgb.b},${alpha})`;
+                  ctx.lineWidth = 0.5;
+                  ctx.stroke();
+                }
+              }
+              j = next[j];
+            }
           }
         }
       }
