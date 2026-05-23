@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOpenRouterKey, getOpenRouterModel } from '@/app/lib/config/serverConfig';
-import { MockProvider, registerProvider } from '@/app/lib/providers/providerAdapter';
+import { MockProvider, registerProvider, getProvider } from '@/app/lib/providers/providerAdapter';
 import { OpenRouterProvider } from '@/app/lib/providers/openRouterProvider';
 import { info, error } from '@/app/lib/logger';
 
@@ -8,6 +8,7 @@ const mockProvider = new MockProvider();
 registerProvider(mockProvider);
 
 async function ensureOpenRouterProvider(): Promise<void> {
+  if (getProvider('openrouter')) return;
   const key = await getOpenRouterKey();
   if (key && key.startsWith('sk-or-')) {
     registerProvider(new OpenRouterProvider(
