@@ -251,7 +251,7 @@ export interface AlertChannel {
 
 export interface CostLogFilters {
   // Add specific filter fields if needed in the future
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ActiveSessionView {
