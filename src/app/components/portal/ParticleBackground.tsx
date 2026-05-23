@@ -132,9 +132,15 @@ export default function ParticleBackground({
     });
 
     const hexToRgb = (hex: string) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
+      if (hex.startsWith('rgb')) {
+        const match = hex.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+          return { r: parseInt(match[1], 10), g: parseInt(match[2], 10), b: parseInt(match[3], 10) };
+        }
+      }
+      const r = parseInt(hex.slice(1, 3), 16) || 0;
+      const g = parseInt(hex.slice(3, 5), 16) || 0;
+      const b = parseInt(hex.slice(5, 7), 16) || 0;
       return { r, g, b };
     };
 
@@ -149,6 +155,12 @@ export default function ParticleBackground({
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+    let cachedColorStr = '';
+    let cachedBaseRgb = { r: 0, g: 0, b: 0 };
+
+    let cachedGlowStr = '';
+    let cachedGlowRgb = { r: 0, g: 0, b: 0 };
+
     const animate = () => {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -156,10 +168,25 @@ export default function ParticleBackground({
       // Lerp color over 1.2s
       const elapsed = Date.now() - lastColorUpdateRef.current;
       const colorT = Math.min(elapsed / 1200, 1);
-      colorRef.current = lerpColor(colorRef.current, targetColorRef.current, colorT);
 
-      const baseRgb = hexToRgb(colorRef.current);
-      const glowRgb = hexToRgb(activeAgent.glowColor);
+      if (colorT < 1) {
+        colorRef.current = lerpColor(colorRef.current, targetColorRef.current, colorT);
+      } else {
+        colorRef.current = targetColorRef.current;
+      }
+
+      if (cachedColorStr !== colorRef.current) {
+        cachedColorStr = colorRef.current;
+        cachedBaseRgb = hexToRgb(colorRef.current);
+      }
+
+      if (cachedGlowStr !== activeAgent.glowColor) {
+        cachedGlowStr = activeAgent.glowColor;
+        cachedGlowRgb = hexToRgb(activeAgent.glowColor);
+      }
+
+      const baseRgb = cachedBaseRgb;
+      const glowRgb = cachedGlowRgb;
 
       // ── Smoothly lerp mood params over ~2s ──
       const moodLerpSpeed = 0.015; // ~2s to converge
