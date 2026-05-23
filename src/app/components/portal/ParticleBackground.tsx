@@ -149,10 +149,7 @@ export default function ParticleBackground({
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-    const animate = () => {
-      if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+    const updateState = (canvas: HTMLCanvasElement) => {
       // Lerp color over 1.2s
       const elapsed = Date.now() - lastColorUpdateRef.current;
       const colorT = Math.min(elapsed / 1200, 1);
@@ -235,8 +232,21 @@ export default function ParticleBackground({
         });
       }
 
-      // Draw connections (using lerped opacity)
+      return { baseRgb, glowRgb };
+    };
+
+    const drawState = (
+      ctx: CanvasRenderingContext2D,
+      canvas: HTMLCanvasElement,
+      baseRgb: { r: number; g: number; b: number },
+      glowRgb: { r: number; g: number; b: number }
+    ) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const cm = currentMoodRef.current;
       const connectionDist = 150;
+
+      // Draw connections (using lerped opacity)
       for (let i = 0; i < particlesRef.current.length; i++) {
         for (let j = i + 1; j < particlesRef.current.length; j++) {
           const a = particlesRef.current[i];
@@ -263,6 +273,13 @@ export default function ParticleBackground({
         ctx.fillStyle = `rgba(${baseRgb.r},${baseRgb.g},${baseRgb.b},${p.opacity})`;
         ctx.fill();
       });
+    };
+
+    const animate = () => {
+      if (!ctx || !canvas) return;
+
+      const { baseRgb, glowRgb } = updateState(canvas);
+      drawState(ctx, canvas, baseRgb, glowRgb);
 
       rafRef.current = requestAnimationFrame(animate);
     };
