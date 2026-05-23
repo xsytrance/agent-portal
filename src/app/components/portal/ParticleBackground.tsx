@@ -319,6 +319,13 @@ export default function ParticleBackground({
         ctx.fillStyle = `rgba(${baseRgb.r},${baseRgb.g},${baseRgb.b},${p.opacity})`;
         ctx.fill();
       });
+    };
+
+    const animate = () => {
+      if (!ctx || !canvas) return;
+
+      const { baseRgb, glowRgb } = updateState(canvas);
+      drawState(ctx, canvas, baseRgb, glowRgb);
 
       rafRef.current = requestAnimationFrame(animate);
     };

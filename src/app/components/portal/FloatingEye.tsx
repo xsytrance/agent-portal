@@ -5,6 +5,176 @@ import { useAgent } from '@/app/context/AgentContext';
 import { useReducedMotion } from '@/app/hooks/useReducedMotion';
 import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
 
+// Refactored helper interfaces & functions
+interface EyeBehavior {
+  trackingSpeed?: number;
+  movementRange?: number;
+  partialAttention?: boolean;
+  secondaryTarget?: { x: number; y: number };
+  thinkingWobble?: boolean;
+  cognitionCue?: 'processing' | 'recalling' | null;
+  pupilDilation?: number;
+  eyelidOpenness?: number;
+  blinkRateMin?: number;
+  blinkRateMax?: number;
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+const updateEyeTracking = (
+  eyeCx: number,
+  eyeCy: number,
+  mousePos: { x: number; y: number },
+  pupilPos: { x: number; y: number },
+  eyeBehavior?: EyeBehavior
+) => {
+  const trackingSpeed = eyeBehavior?.trackingSpeed ?? 0.08;
+  const movementRange = eyeBehavior?.movementRange ?? 10;
+  const partialAttention = eyeBehavior?.partialAttention;
+  const secondaryTarget = eyeBehavior?.secondaryTarget;
+
+  let targetX = 0;
+  let targetY = 0;
+
+  if (partialAttention && secondaryTarget) {
+    const sdx = secondaryTarget.x - eyeCx;
+    const sdy = secondaryTarget.y - eyeCy;
+    const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+    targetX = sdist > 0 ? (sdx / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
+    targetY = sdist > 0 ? (sdy / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
+  } else {
+    const dx = mousePos.x - eyeCx;
+    const dy = mousePos.y - eyeCy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    targetX = dist > 0 ? (dx / dist) * Math.min(dist * 0.05, movementRange) : 0;
+    targetY = dist > 0 ? (dy / dist) * Math.min(dist * 0.05, movementRange) : 0;
+  }
+
+  return {
+    x: lerp(pupilPos.x, targetX, trackingSpeed),
+    y: lerp(pupilPos.y, targetY, trackingSpeed),
+  };
+};
+
+const updatePupilDarts = (
+  dartRef: { x: number; y: number; active: boolean; startTime: number },
+  eyeBehavior?: EyeBehavior
+) => {
+  let dartX = 0;
+  let dartY = 0;
+  const now = Date.now();
+
+  if (eyeBehavior?.thinkingWobble && !dartRef.active) {
+    if (Math.random() < 0.008) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 4 + Math.random() * 5;
+      dartRef.x = Math.cos(angle) * distance;
+      dartRef.y = Math.sin(angle) * distance;
+      dartRef.active = true;
+      dartRef.startTime = now;
+    }
+  }
+
+  if (dartRef.active) {
+    const dartElapsed = now - dartRef.startTime;
+    if (dartElapsed > 250) {
+      dartRef.active = false;
+      dartRef.x = 0;
+      dartRef.y = 0;
+    } else {
+      const dartT = dartElapsed / 250;
+      const envelope = Math.sin(dartT * Math.PI); // 0→1→0
+      dartX = dartRef.x * envelope;
+      dartY = dartRef.y * envelope;
+    }
+  }
+
+  return { dartX, dartY };
+};
+
+const getThinkingWobble = (eyeBehavior?: EyeBehavior) => {
+  let wobbleX = 0;
+  let wobbleY = 0;
+  if (eyeBehavior?.thinkingWobble) {
+    const wt = Date.now() / 1000;
+    wobbleX = Math.sin(wt * 3) * 0.6;
+    wobbleY = Math.cos(wt * 2.3) * 0.5;
+  }
+  return { wobbleX, wobbleY };
+};
+
+const updateCognitionCues = (
+  pupilRef: HTMLDivElement,
+  pupilScaleRef: React.MutableRefObject<number>,
+  eyeBehavior?: EyeBehavior
+) => {
+  const cue = eyeBehavior?.cognitionCue;
+  const baseDilation = eyeBehavior?.pupilDilation ?? 1;
+  let targetPupilScale = baseDilation;
+
+  if (cue === 'processing') {
+    targetPupilScale = baseDilation * 1.08;
+  } else if (cue === 'recalling') {
+    targetPupilScale = baseDilation * 0.95;
+  }
+
+  pupilScaleRef.current = lerp(pupilScaleRef.current, targetPupilScale, 0.12);
+
+  const basePupilSize = 12;
+  const currentPupilSize = basePupilSize * pupilScaleRef.current;
+  pupilRef.style.width = `${currentPupilSize}px`;
+  pupilRef.style.height = `${currentPupilSize}px`;
+  pupilRef.style.marginLeft = `${-currentPupilSize / 2}px`;
+  pupilRef.style.marginTop = `${-currentPupilSize / 2}px`;
+};
+
+const updateBreathingRhythm = (
+  svgRef: SVGSVGElement,
+  breathStart: number,
+  silenceMode?: string,
+  emotion?: string
+) => {
+  const breathPeriod = silenceMode === 'RESTING' ? 4000 : 2500;
+  const breathPhase = ((Date.now() - breathStart) % breathPeriod) / breathPeriod;
+  const breathScale = 1 + Math.sin(breathPhase * Math.PI * 2) * 0.03;
+
+  const irisTransform = emotion === 'surprised'
+    ? 'scale(0.8)'
+    : emotion === 'happy'
+      ? 'scale(1.05)'
+      : 'scale(1)';
+  svgRef.style.transform = `${irisTransform} scale(${breathScale})`;
+};
+
+const updateRestingEyelid = (
+  currentEyelidRef: React.MutableRefObject<number>,
+  silenceMode?: string,
+  emotion?: string,
+  eyeBehavior?: EyeBehavior
+) => {
+  const targetEyelid = silenceMode === 'RESTING'
+    ? (eyeBehavior?.eyelidOpenness ?? 0.65)
+    : emotion === 'sleepy'
+      ? 0.55
+      : 0;
+  currentEyelidRef.current = lerp(currentEyelidRef.current, targetEyelid, 0.03);
+};
+
+const checkBlinkRate = (
+  lastBlinkRef: React.MutableRefObject<number>,
+  setBlink: (val: boolean) => void,
+  eyeBehavior?: EyeBehavior
+) => {
+  const now = Date.now();
+  if (now > lastBlinkRef.current) {
+    setBlink(true);
+    const blinkMin = eyeBehavior?.blinkRateMin ?? 3000;
+    const blinkMax = eyeBehavior?.blinkRateMax ?? 6000;
+    lastBlinkRef.current = now + blinkMin + Math.random() * (blinkMax - blinkMin);
+    setTimeout(() => setBlink(false), 150);
+  }
+};
+
 interface FloatingEyeProps {
   size?: number;
   mobileSize?: number;
@@ -39,8 +209,6 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
     setIsClient(true);
   }, []);
 
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
   useEffect(() => {
     if (reducedMotion || !isClient) return;
 
@@ -59,131 +227,36 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       const eyeCx = eyeRect.left + eyeRect.width / 2;
       const eyeCy = eyeRect.top + eyeRect.height / 2;
 
-      const trackingSpeed = eyeBehavior?.trackingSpeed ?? 0.08;
-      const movementRange = eyeBehavior?.movementRange ?? 10;
-
       // ── 3. Partial attention: drift toward secondary target ──
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const partialAttention = (eyeBehavior as any)?.partialAttention;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const secondaryTarget = (eyeBehavior as any)?.secondaryTarget;
-      let targetX = 0;
-      let targetY = 0;
-
-      if (partialAttention && secondaryTarget) {
-        const sdx = (secondaryTarget as { x: number; y: number }).x - eyeCx;
-        const sdy = (secondaryTarget as { x: number; y: number }).y - eyeCy;
-        const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
-        targetX = sdist > 0 ? (sdx / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
-        targetY = sdist > 0 ? (sdy / sdist) * Math.min(sdist * 0.03, movementRange * 0.5) : 0;
-      } else {
-        const dx = mouseRef.current.x - eyeCx;
-        const dy = mouseRef.current.y - eyeCy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        targetX = dist > 0 ? (dx / dist) * Math.min(dist * 0.05, movementRange) : 0;
-        targetY = dist > 0 ? (dy / dist) * Math.min(dist * 0.05, movementRange) : 0;
-      }
-
-      pupilPos.current = {
-        x: lerp(pupilPos.current.x, targetX, trackingSpeed),
-        y: lerp(pupilPos.current.y, targetY, trackingSpeed),
-      };
+      pupilPos.current = updateEyeTracking(
+        eyeCx,
+        eyeCy,
+        mouseRef.current,
+        pupilPos.current,
+        eyeBehavior as EyeBehavior
+      );
 
       // ── 6. THINKING mode: occasional pupil dart ──
-      let dartX = 0;
-      let dartY = 0;
-      if (eyeBehavior?.thinkingWobble && !dartRef.current.active) {
-        // Occasional dart (~every 1.5-3.5s)
-        if (Math.random() < 0.008) {
-          const angle = Math.random() * Math.PI * 2;
-          const distance = 4 + Math.random() * 5;
-          dartRef.current = {
-            x: Math.cos(angle) * distance,
-            y: Math.sin(angle) * distance,
-            active: true,
-            startTime: Date.now(),
-          };
-        }
-      }
-      if (dartRef.current.active) {
-        const dartElapsed = Date.now() - dartRef.current.startTime;
-        if (dartElapsed > 250) {
-          dartRef.current.active = false;
-          dartRef.current.x = 0;
-          dartRef.current.y = 0;
-        } else {
-          // Quick out-and-back curve
-          const dartT = dartElapsed / 250;
-          const envelope = Math.sin(dartT * Math.PI); // 0→1→0
-          dartX = dartRef.current.x * envelope;
-          dartY = dartRef.current.y * envelope;
-        }
-      }
+      const { dartX, dartY } = updatePupilDarts(dartRef.current, eyeBehavior as EyeBehavior);
 
       // ── 6. THINKING mode: very subtle wobble (±1px) ──
-      let wobbleX = 0;
-      let wobbleY = 0;
-      if (eyeBehavior?.thinkingWobble) {
-        const wt = Date.now() / 1000;
-        wobbleX = Math.sin(wt * 3) * 0.6;
-        wobbleY = Math.cos(wt * 2.3) * 0.5;
-      }
+      const { wobbleX, wobbleY } = getThinkingWobble(eyeBehavior as EyeBehavior);
 
       const finalX = pupilPos.current.x + wobbleX + dartX;
       const finalY = pupilPos.current.y + wobbleY + dartY;
       pupilRef.current.style.transform = `translate(${finalX}px, ${finalY}px)`;
 
       // ── 4. Cognition cues: subtle pupil dilation/constriction ──
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cue = (eyeBehavior as any)?.cognitionCue;
-      const baseDilation = eyeBehavior?.pupilDilation ?? 1;
-      let targetPupilScale = baseDilation;
-
-      if (cue === 'processing') {
-        targetPupilScale = baseDilation * 1.08;
-      } else if (cue === 'recalling') {
-        targetPupilScale = baseDilation * 0.95;
-      }
-
-      pupilScaleRef.current = lerp(pupilScaleRef.current, targetPupilScale, 0.12);
-
-      // Apply pupil size directly (no re-render)
-      const basePupilSize = 12;
-      const currentPupilSize = basePupilSize * pupilScaleRef.current;
-      pupilRef.current.style.width = `${currentPupilSize}px`;
-      pupilRef.current.style.height = `${currentPupilSize}px`;
-      pupilRef.current.style.marginLeft = `${-currentPupilSize / 2}px`;
-      pupilRef.current.style.marginTop = `${-currentPupilSize / 2}px`;
+      updateCognitionCues(pupilRef.current, pupilScaleRef, eyeBehavior as EyeBehavior);
 
       // ── 2. Breathing rhythm: barely perceptible scale pulse ──
-      const breathPeriod = silenceMode === 'RESTING' ? 4000 : 2500;
-      const breathPhase = ((Date.now() - breathStartRef.current) % breathPeriod) / breathPeriod;
-      const breathScale = 1 + Math.sin(breathPhase * Math.PI * 2) * 0.03;
-
-      const irisTransform = emotion === 'surprised'
-        ? 'scale(0.8)'
-        : emotion === 'happy'
-          ? 'scale(1.05)'
-          : 'scale(1)';
-      svgRef.current.style.transform = `${irisTransform} scale(${breathScale})`;
+      updateBreathingRhythm(svgRef.current, breathStartRef.current, silenceMode, emotion);
 
       // ── 5. RESTING mode: half-lidded eyelid (smooth lerp) ──
-      const targetEyelid = silenceMode === 'RESTING'
-        ? (eyeBehavior?.eyelidOpenness ?? 0.65)
-        : emotion === 'sleepy'
-          ? 0.55
-          : 0;
-      currentEyelidRef.current = lerp(currentEyelidRef.current, targetEyelid, 0.03);
+      updateRestingEyelid(currentEyelidRef, silenceMode, emotion, eyeBehavior as EyeBehavior);
 
       // ── 7. Blink rate wiring: use eyeBehavior rates ──
-      const now = Date.now();
-      if (now > lastBlinkRef.current) {
-        setBlink(true);
-        const blinkMin = eyeBehavior?.blinkRateMin ?? 3000;
-        const blinkMax = eyeBehavior?.blinkRateMax ?? 6000;
-        lastBlinkRef.current = now + blinkMin + Math.random() * (blinkMax - blinkMin);
-        setTimeout(() => setBlink(false), 150);
-      }
+      checkBlinkRate(lastBlinkRef, setBlink, eyeBehavior as EyeBehavior);
 
       rafRef.current = requestAnimationFrame(animate);
     };

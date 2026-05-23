@@ -8,6 +8,10 @@ export class OpenRouterProvider implements ProviderAdapter {
   private config: ProviderConfig;
   private apiKey: string | undefined;
 
+  // Rate Limiter tracking
+  private requestTimestamps: number[] = [];
+  private readonly maxRequestsPerMinute = 20;
+
   constructor(config: ProviderConfig, apiKey?: string) {
     this.config = config;
     this.apiKey = apiKey;
@@ -19,6 +23,21 @@ export class OpenRouterProvider implements ProviderAdapter {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     if (!this.apiKey) throw new Error('OpenRouter API key not configured');
+
+    const now = Date.now();
+    const windowStart = now - 60000;
+
+    // Clean up old timestamps
+    this.requestTimestamps = this.requestTimestamps.filter(time => time > windowStart);
+
+    // Check rate limit
+    if (this.requestTimestamps.length >= this.maxRequestsPerMinute) {
+      await error('openrouter', 'Rate limit exceeded', { route: '/api/agent/chat', details: { maxRequests: this.maxRequestsPerMinute } });
+      throw new Error('Rate limit exceeded: Please try again later.');
+    }
+
+    // Add current request timestamp
+    this.requestTimestamps.push(now);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
