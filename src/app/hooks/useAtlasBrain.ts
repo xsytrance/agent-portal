@@ -49,17 +49,33 @@ export interface AtlasBrainAPI {
   sendSignal: (type: BehaviorSignal['type'], payload?: Record<string, unknown>) => BehaviorDecision | undefined;
 }
 
-export function useAtlasBrain(): AtlasBrainAPI {
-  const brainRef = useRef<AtlasBrain | null>(null);
-
-  // React state for the pieces the UI actually renders
+function useAtlasBrainState() {
   const [state, setState] = useState<AtlasState | null>(null);
   const [decision, setDecision] = useState<BehaviorDecision | null>(null);
   const [rareReady, setRareReady] = useState(false);
-
-  // Refs for the tick loop and rare-event consumption
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rareEventRef = useRef<boolean>(false);
+
+  const updateFromDecision = useCallback((d: BehaviorDecision, currentState: AtlasState) => {
+    setDecision(d);
+    setState(currentState);
+    const hasRare = !!d.rareEventTrigger;
+    setRareReady(hasRare);
+    if (d.rareEventTrigger) {
+      rareEventRef.current = d.rareEventTrigger;
+    }
+  }, []);
+
+  return { state, decision, rareReady, rareEventRef, setRareReady, updateFromDecision };
+}
+
+export function useAtlasBrain(): AtlasBrainAPI {
+  const brainRef = useRef<AtlasBrain | null>(null);
+
+  // React state and update logic
+  const { state, decision, rareReady, rareEventRef, setRareReady, updateFromDecision } = useAtlasBrainState();
+
+  // Refs for the tick loop
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Initialise brain & tick loop ────────────────────────────────
   useEffect(() => {
@@ -69,15 +85,11 @@ export function useAtlasBrain(): AtlasBrainAPI {
     brainRef.current = new AtlasBrain();
 
     // Prime initial state
-    const initialState = brainRef.current.getState();
     const initialDecision = brainRef.current.tick({
       type: 'TICK',
       timestamp: Date.now(),
     });
-    setState(initialState);
-    setDecision(initialDecision);
-    setRareReady(!!initialDecision.rareEventTrigger);
-    rareEventRef.current = !!initialDecision.rareEventTrigger;
+    updateFromDecision(initialDecision, brainRef.current.getState());
 
     // Tick loop: every 500 ms
     tickRef.current = setInterval(() => {
@@ -87,15 +99,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
         type: 'TICK',
         timestamp: Date.now(),
       });
-
-      setDecision(d);
-      setState(brainRef.current.getState());
-
-      const hasRare = !!d.rareEventTrigger;
-      setRareReady(hasRare);
-      if (d.rareEventTrigger) {
-        rareEventRef.current = d.rareEventTrigger;
-      }
+      updateFromDecision(d, brainRef.current.getState());
     }, 500);
 
     return () => {
@@ -105,7 +109,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
       }
       brainRef.current = null;
     };
-  }, []);
+  }, [updateFromDecision]);
 
   // ── Send any signal to the brain ────────────────────────────────
   const sendSignal = useCallback(
@@ -122,18 +126,11 @@ export function useAtlasBrain(): AtlasBrainAPI {
       };
 
       const d = brainRef.current.tick(signal);
-      setDecision(d);
-      setState(brainRef.current.getState());
-
-      const hasRare = !!d.rareEventTrigger;
-      setRareReady(hasRare);
-      if (d.rareEventTrigger) {
-        rareEventRef.current = d.rareEventTrigger;
-      }
+      updateFromDecision(d, brainRef.current.getState());
 
       return d;
     },
-    [],
+    [updateFromDecision],
   );
 
   // ── Typed signal shortcuts ──────────────────────────────────────
@@ -164,7 +161,7 @@ export function useAtlasBrain(): AtlasBrainAPI {
     rareEventRef.current = false;
     setRareReady(false);
     return ev;
-  }, []);
+  }, [rareEventRef, setRareReady]);
 
   return {
     state,
