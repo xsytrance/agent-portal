@@ -1,5 +1,5 @@
 import { ProviderAdapter, ProviderConfig } from './providerAdapter';
-import { ChatRequest, ChatResponse } from './providerTypes';
+import { ChatRequest, ChatResponse, ProviderCapabilities } from './providerTypes';
 import { info, error } from '../logger';
 
 export class OpenRouterProvider implements ProviderAdapter {
@@ -15,6 +15,10 @@ export class OpenRouterProvider implements ProviderAdapter {
   constructor(config: ProviderConfig, apiKey?: string) {
     this.config = config;
     this.apiKey = apiKey;
+  }
+
+  getCapabilities(): ProviderCapabilities {
+    return { stream: true, vision: false, tools: true };
   }
 
   async isAvailable(): Promise<boolean> {

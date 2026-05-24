@@ -9,3 +9,9 @@ export interface ChatResponse {
   model?: string;
   usage?: { prompt: number; completion: number };
 }
+
+export interface ProviderCapabilities {
+  stream: boolean;
+  vision: boolean;
+  tools: boolean;
+}

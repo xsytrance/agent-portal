@@ -41,6 +41,22 @@ export interface AutonomousConfig {
   };
 }
 
+
+export interface PresenceConfig {
+  masterToggle: boolean;
+  runtimeMode: 'mock' | 'development' | 'production';
+  globalActionRateLimit: number;
+  silenceMode: boolean;
+}
+
+export interface BudgetConfig {
+  sessionBudget: number;
+  perMinuteLimit: number;
+  warningThreshold: number;
+  criticalThreshold: number;
+  autoDegradation: boolean;
+}
+
 export interface FeatureFlags {
   floatingEye: boolean;
   cursorTrail: boolean;
@@ -71,6 +87,9 @@ export interface LogEntry {
 }
 
 export interface AdminConfig {
+  safety?: { showMockIndicator?: boolean, maxSessionDurationMinutes?: number, idleTimeoutMinutes?: number, maxProviderErrors?: number };
+  presenceConfig?: PresenceConfig;
+  budgetConfig?: BudgetConfig;
   apiKeys: ApiKey[];
   agentConfigs: AgentConfigData[];
   autonomousConfig: AutonomousConfig;
@@ -226,6 +245,26 @@ function getDefaultLogs(): LogEntry[] {
   ];
 }
 
+
+function getDefaultPresenceConfig(): PresenceConfig {
+  return {
+    masterToggle: true,
+    runtimeMode: 'development',
+    globalActionRateLimit: 5,
+    silenceMode: true,
+  };
+}
+
+function getDefaultBudgetConfig(): BudgetConfig {
+  return {
+    sessionBudget: 2500,
+    perMinuteLimit: 50,
+    warningThreshold: 80,
+    criticalThreshold: 95,
+    autoDegradation: true,
+  };
+}
+
 function getDefaultConfig(): AdminConfig {
   return {
     apiKeys: [],
@@ -234,6 +273,9 @@ function getDefaultConfig(): AdminConfig {
     featureFlags: getDefaultFeatureFlags(),
     promptConfigs: getDefaultPromptConfigs(),
     logs: getDefaultLogs(),
+    safety: { showMockIndicator: true, maxSessionDurationMinutes: 60, idleTimeoutMinutes: 30, maxProviderErrors: 5 },
+    presenceConfig: getDefaultPresenceConfig(),
+    budgetConfig: getDefaultBudgetConfig(),
   };
 }
 
@@ -285,6 +327,26 @@ export function useAdminConfig() {
     setConfig((prev) => ({ ...prev, promptConfigs: prompts }));
   }, []);
 
+
+  const setPresenceConfig = useCallback((presenceConfig: PresenceConfig) => {
+    setConfig((prev) => ({ ...prev, presenceConfig }));
+  }, []);
+
+  const setBudgetConfig = useCallback((budgetConfig: BudgetConfig) => {
+    setConfig((prev) => ({ ...prev, budgetConfig }));
+  }, []);
+
+
+  const updateConfig = useCallback((section: string, updates: Record<string, any>) => {
+    setConfig((prev) => {
+      const targetSection = prev[section as keyof AdminConfig] || {};
+      return {
+        ...prev,
+        [section]: { ...targetSection, ...updates },
+      };
+    });
+  }, []);
+
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     const newEntry: LogEntry = {
       ...entry,
@@ -312,6 +374,9 @@ export function useAdminConfig() {
     setAutonomousConfig,
     setFeatureFlags,
     setPromptConfigs,
+    updateConfig,
+    setPresenceConfig,
+    setBudgetConfig,
     addLog,
     clearLogs,
     resetToDefaults,
