@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAgent } from '@/app/context/AgentContext';
-import { useReducedMotion } from '@/app/hooks/useReducedMotion';
-import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useAgent } from "@/app/context/AgentContext";
+import { useReducedMotion } from "@/app/hooks/useReducedMotion";
+import type { AtlasBrainAPI } from "@/app/hooks/useAtlasBrain";
 
 // Refactored helper interfaces & functions
 interface EyeBehavior {
@@ -181,13 +181,19 @@ interface FloatingEyeProps {
   atlasBrain?: AtlasBrainAPI | null;
 }
 
-export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: FloatingEyeProps) {
+export default function FloatingEye({
+  size = 96,
+  mobileSize = 64,
+  atlasBrain,
+}: FloatingEyeProps) {
   const { activeAgent, setChatOpen, agentMessage, isThinking } = useAgent();
   const reducedMotion = useReducedMotion();
   const eyeRef = useRef<HTMLDivElement>(null);
   const pupilRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [emotion] = useState<'neutral' | 'happy' | 'curious' | 'surprised' | 'sleepy'>('neutral');
+  const [emotion] = useState<
+    "neutral" | "happy" | "curious" | "surprised" | "sleepy"
+  >("neutral");
   const [isClient, setIsClient] = useState<boolean>(false);
   const mouseRef = useRef({ x: 0, y: 0 });
   const pupilPos = useRef({ x: 0, y: 0 });
@@ -215,7 +221,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
     const onMouseMove = (e: MouseEvent) => {
       mouseRef.current = { x: e.clientX, y: e.clientY };
     };
-    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener("mousemove", onMouseMove);
 
     const animate = () => {
       if (!eyeRef.current || !pupilRef.current || !svgRef.current) {
@@ -228,13 +234,37 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       const eyeCy = eyeRect.top + eyeRect.height / 2;
 
       // ── 3. Partial attention: drift toward secondary target ──
-      pupilPos.current = updateEyeTracking(
-        eyeCx,
-        eyeCy,
-        mouseRef.current,
-        pupilPos.current,
-        eyeBehavior as EyeBehavior
-      );
+      const partialAttention = eyeBehavior?.partialAttention;
+      const secondaryTarget = eyeBehavior?.secondaryTarget;
+      let targetX = 0;
+      let targetY = 0;
+
+      if (partialAttention && secondaryTarget) {
+        const sdx = secondaryTarget.x - eyeCx;
+        const sdy = secondaryTarget.y - eyeCy;
+        const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+        targetX =
+          sdist > 0
+            ? (sdx / sdist) * Math.min(sdist * 0.03, movementRange * 0.5)
+            : 0;
+        targetY =
+          sdist > 0
+            ? (sdy / sdist) * Math.min(sdist * 0.03, movementRange * 0.5)
+            : 0;
+      } else {
+        const dx = mouseRef.current.x - eyeCx;
+        const dy = mouseRef.current.y - eyeCy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        targetX =
+          dist > 0 ? (dx / dist) * Math.min(dist * 0.05, movementRange) : 0;
+        targetY =
+          dist > 0 ? (dy / dist) * Math.min(dist * 0.05, movementRange) : 0;
+      }
+
+      pupilPos.current = {
+        x: lerp(pupilPos.current.x, targetX, trackingSpeed),
+        y: lerp(pupilPos.current.y, targetY, trackingSpeed),
+      };
 
       // ── 6. THINKING mode: occasional pupil dart ──
       const { dartX, dartY } = updatePupilDarts(dartRef.current, eyeBehavior as EyeBehavior);
@@ -247,16 +277,67 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
       pupilRef.current.style.transform = `translate(${finalX}px, ${finalY}px)`;
 
       // ── 4. Cognition cues: subtle pupil dilation/constriction ──
-      updateCognitionCues(pupilRef.current, pupilScaleRef, eyeBehavior as EyeBehavior);
+      const cue = eyeBehavior?.cognitionCue;
+      const baseDilation = eyeBehavior?.pupilDilation ?? 1;
+      let targetPupilScale = baseDilation;
+
+      if (cue === "processing") {
+        targetPupilScale = baseDilation * 1.08;
+      } else if (cue === "recalling") {
+        targetPupilScale = baseDilation * 0.95;
+      }
+
+      pupilScaleRef.current = lerp(
+        pupilScaleRef.current,
+        targetPupilScale,
+        0.12,
+      );
+
+      // Apply pupil size directly (no re-render)
+      const basePupilSize = 12;
+      const currentPupilSize = basePupilSize * pupilScaleRef.current;
+      pupilRef.current.style.width = `${currentPupilSize}px`;
+      pupilRef.current.style.height = `${currentPupilSize}px`;
+      pupilRef.current.style.marginLeft = `${-currentPupilSize / 2}px`;
+      pupilRef.current.style.marginTop = `${-currentPupilSize / 2}px`;
 
       // ── 2. Breathing rhythm: barely perceptible scale pulse ──
-      updateBreathingRhythm(svgRef.current, breathStartRef.current, silenceMode, emotion);
+      const breathPeriod = silenceMode === "RESTING" ? 4000 : 2500;
+      const breathPhase =
+        ((Date.now() - breathStartRef.current) % breathPeriod) / breathPeriod;
+      const breathScale = 1 + Math.sin(breathPhase * Math.PI * 2) * 0.03;
+
+      const irisTransform =
+        emotion === "surprised"
+          ? "scale(0.8)"
+          : emotion === "happy"
+            ? "scale(1.05)"
+            : "scale(1)";
+      svgRef.current.style.transform = `${irisTransform} scale(${breathScale})`;
 
       // ── 5. RESTING mode: half-lidded eyelid (smooth lerp) ──
-      updateRestingEyelid(currentEyelidRef, silenceMode, emotion, eyeBehavior as EyeBehavior);
+      const targetEyelid =
+        silenceMode === "RESTING"
+          ? (eyeBehavior?.eyelidOpenness ?? 0.65)
+          : emotion === "sleepy"
+            ? 0.55
+            : 0;
+      currentEyelidRef.current = lerp(
+        currentEyelidRef.current,
+        targetEyelid,
+        0.03,
+      );
 
       // ── 7. Blink rate wiring: use eyeBehavior rates ──
-      checkBlinkRate(lastBlinkRef, setBlink, eyeBehavior as EyeBehavior);
+      const now = Date.now();
+      if (now > lastBlinkRef.current) {
+        setBlink(true);
+        const blinkMin = eyeBehavior?.blinkRateMin ?? 3000;
+        const blinkMax = eyeBehavior?.blinkRateMax ?? 6000;
+        lastBlinkRef.current =
+          now + blinkMin + Math.random() * (blinkMax - blinkMin);
+        setTimeout(() => setBlink(false), 150);
+      }
 
       rafRef.current = requestAnimationFrame(animate);
     };
@@ -264,7 +345,7 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
     rafRef.current = requestAnimationFrame(animate);
 
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener("mousemove", onMouseMove);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [reducedMotion, isClient, eyeBehavior, silenceMode, emotion]);
@@ -275,10 +356,13 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
 
   if (!isClient) return null;
 
-  const eyeSize = typeof window !== 'undefined' && window.innerWidth < 640 ? mobileSize : size;
+  const eyeSize =
+    typeof window !== "undefined" && window.innerWidth < 640
+      ? mobileSize
+      : size;
   const highlightSize = 4;
 
-  const eyeTransform = emotion === 'surprised' ? 'scale(1.2)' : 'scale(1)';
+  const eyeTransform = emotion === "surprised" ? "scale(1.2)" : "scale(1)";
 
   // Eyelid height derived from animated ref (rounded for display)
   const eyelidDisplayPct = Math.round(currentEyelidRef.current * 100);
@@ -289,9 +373,15 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         <div
           className="fixed z-40 transition-all duration-500 pointer-events-none"
           style={{
-            right: typeof window !== 'undefined' && window.innerWidth < 640 ? '50%' : '32px',
+            right:
+              typeof window !== "undefined" && window.innerWidth < 640
+                ? "50%"
+                : "32px",
             bottom: `${eyeSize + 40}px`,
-            transform: typeof window !== 'undefined' && window.innerWidth < 640 ? 'translateX(50%)' : 'none',
+            transform:
+              typeof window !== "undefined" && window.innerWidth < 640
+                ? "translateX(50%)"
+                : "none",
           }}
         >
           <div
@@ -299,8 +389,8 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
             style={{
               maxWidth: 280,
               border: `1px solid ${activeAgent.glowColor}`,
-              color: 'white',
-              fontSize: '0.9375rem',
+              color: "white",
+              fontSize: "0.9375rem",
               fontFamily: "'Inter', sans-serif",
               lineHeight: 1.55,
             }}
@@ -315,19 +405,25 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         onClick={handleClick}
         className="fixed z-40 cursor-pointer"
         style={{
-          right: typeof window !== 'undefined' && window.innerWidth < 640 ? '50%' : '32px',
-          bottom: '32px',
+          right:
+            typeof window !== "undefined" && window.innerWidth < 640
+              ? "50%"
+              : "32px",
+          bottom: "32px",
           width: eyeSize,
           height: eyeSize,
-          transform: typeof window !== 'undefined' && window.innerWidth < 640
-            ? `translateX(50%) ${eyeTransform}`
-            : eyeTransform,
+          transform:
+            typeof window !== "undefined" && window.innerWidth < 640
+              ? `translateX(50%) ${eyeTransform}`
+              : eyeTransform,
           marginRight: undefined,
           marginLeft: undefined,
-          animation: reducedMotion ? 'none' : 'eyeFloat 4s ease-in-out infinite',
-          transition: 'transform 0.3s ease',
+          animation: reducedMotion
+            ? "none"
+            : "eyeFloat 4s ease-in-out infinite",
+          transition: "transform 0.3s ease",
           boxShadow: `0 0 30px ${activeAgent.glowColor}4D`,
-          borderRadius: '50%',
+          borderRadius: "50%",
         }}
       >
         {/* Sclera */}
@@ -337,8 +433,8 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
           height={eyeSize}
           viewBox="0 0 100 100"
           style={{
-            transformOrigin: '50% 50%',
-            transition: 'transform 0.3s ease',
+            transformOrigin: "50% 50%",
+            transition: "transform 0.3s ease",
           }}
         >
           <defs>
@@ -367,16 +463,27 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
             fill="#FFF"
             filter="url(#eyeShadow)"
             style={{
-              transform: blink ? 'scaleY(0.1)' : 'scaleY(1)',
-              transition: blink ? 'transform 0.05s' : 'transform 0.15s',
-              transformOrigin: '50px 50px',
+              transform: blink ? "scaleY(0.1)" : "scaleY(1)",
+              transition: blink ? "transform 0.05s" : "transform 0.15s",
+              transformOrigin: "50px 50px",
             }}
           />
 
           {/* Iris */}
-          <g style={{ transformOrigin: '50px 50px', transition: 'transform 0.4s ease' }}>
+          <g
+            style={{
+              transformOrigin: "50px 50px",
+              transition: "transform 0.4s ease",
+            }}
+          >
             <circle cx="50" cy="50" r="22" fill="url(#irisGrad)" />
-            <circle cx="50" cy="50" r="18" fill={activeAgent.primaryColor} opacity="0.6" />
+            <circle
+              cx="50"
+              cy="50"
+              r="18"
+              fill={activeAgent.primaryColor}
+              opacity="0.6"
+            />
           </g>
         </svg>
 
@@ -384,16 +491,16 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         <div
           ref={pupilRef}
           style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
+            position: "absolute",
+            top: "50%",
+            left: "50%",
             width: 12,
             height: 12,
             marginLeft: -6,
             marginTop: -6,
-            borderRadius: '50%',
-            backgroundColor: '#1A1A2E',
-            transition: 'width 0.3s, height 0.3s',
+            borderRadius: "50%",
+            backgroundColor: "#1A1A2E",
+            transition: "width 0.3s, height 0.3s",
             zIndex: 2,
           }}
         />
@@ -401,15 +508,15 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         {/* Specular highlight */}
         <div
           style={{
-            position: 'absolute',
-            top: '30%',
-            left: '58%',
+            position: "absolute",
+            top: "30%",
+            left: "58%",
             width: highlightSize,
             height: highlightSize,
-            borderRadius: '50%',
-            backgroundColor: 'rgba(255,255,255,0.8)',
+            borderRadius: "50%",
+            backgroundColor: "rgba(255,255,255,0.8)",
             zIndex: 3,
-            pointerEvents: 'none',
+            pointerEvents: "none",
           }}
         />
 
@@ -417,35 +524,41 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         {eyelidDisplayPct > 1 && (
           <div
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
               left: 0,
               right: 0,
               height: `${eyelidDisplayPct}%`,
-              borderRadius: '50% 50% 0 0',
-              backgroundColor: 'rgba(26, 26, 46, 0.4)',
+              borderRadius: "50% 50% 0 0",
+              backgroundColor: "rgba(26, 26, 46, 0.4)",
               zIndex: 4,
-              pointerEvents: 'none',
-              transition: 'height 0.1s linear',
+              pointerEvents: "none",
+              transition: "height 0.1s linear",
             }}
           />
         )}
 
         {/* Emotion smile curve */}
-        {emotion === 'happy' && (
+        {emotion === "happy" && (
           <svg
             width={eyeSize * 0.6}
             height={12}
             viewBox="0 0 60 12"
             style={{
-              position: 'absolute',
-              bottom: '-6px',
-              left: '20%',
+              position: "absolute",
+              bottom: "-6px",
+              left: "20%",
               zIndex: 4,
-              pointerEvents: 'none',
+              pointerEvents: "none",
             }}
           >
-            <path d="M5 5 Q30 15 55 5" fill="none" stroke={activeAgent.primaryColor} strokeWidth="2" strokeLinecap="round" />
+            <path
+              d="M5 5 Q30 15 55 5"
+              fill="none"
+              stroke={activeAgent.primaryColor}
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
           </svg>
         )}
 
@@ -453,16 +566,16 @@ export default function FloatingEye({ size = 96, mobileSize = 64, atlasBrain }: 
         {isThinking && (
           <div
             style={{
-              position: 'absolute',
-              top: '-8px',
-              left: '-8px',
-              right: '-8px',
-              bottom: '-8px',
-              borderRadius: '50%',
+              position: "absolute",
+              top: "-8px",
+              left: "-8px",
+              right: "-8px",
+              bottom: "-8px",
+              borderRadius: "50%",
               border: `2px solid ${activeAgent.primaryColor}`,
               opacity: 0.4,
-              animation: 'ringPulse 1.5s ease-in-out infinite',
-              pointerEvents: 'none',
+              animation: "ringPulse 1.5s ease-in-out infinite",
+              pointerEvents: "none",
             }}
           />
         )}
