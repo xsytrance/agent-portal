@@ -1,5 +1,5 @@
 import { BudgetTier, TokenBudget, BudgetConfig } from './types';
-import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
+import { classifyEvent } from './costTiers';
 
 export const FALLBACK_CHAIN: Record<string, string[]> = {
   'llm:chat_completion':     ['message:cached', 'message:template', 'template:phrase', 'visual:effect'],
