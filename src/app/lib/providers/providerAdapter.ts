@@ -1,10 +1,11 @@
-import { ChatRequest, ChatResponse } from './providerTypes';
+import { ChatRequest, ChatResponse, ProviderCapabilities } from './providerTypes';
 
 export interface ProviderAdapter {
   readonly providerId: string;
   readonly providerName: string;
   isAvailable(): Promise<boolean>;
   chat(request: ChatRequest): Promise<ChatResponse>;
+  getCapabilities(): ProviderCapabilities;
 }
 
 export interface ProviderConfig {
@@ -32,6 +33,15 @@ export class MockProvider implements ProviderAdapter {
     return {
       content: responses[agentId] || `[Mock] Agent ${agentId} says: "${request.message}" is interesting!`,
       model: 'mock/demo',
+    };
+  }
+
+  getCapabilities(): ProviderCapabilities {
+    return {
+      supportsStreaming: false,
+      supportsImages: false,
+      supportsTools: false,
+      supportsSystemPrompts: false,
     };
   }
 }

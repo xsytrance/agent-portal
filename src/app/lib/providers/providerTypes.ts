@@ -9,3 +9,16 @@ export interface ChatResponse {
   model?: string;
   usage?: { prompt: number; completion: number };
 }
+
+export interface ProviderCapabilities {
+  supportsStreaming: boolean;
+  supportsImages: boolean;
+  supportsTools: boolean;
+  supportsSystemPrompts: boolean;
+}
+
+export interface AIProvider {
+  isAvailable(): boolean;
+  chat(request: ChatRequest): Promise<ChatResponse>;
+  getCapabilities(): ProviderCapabilities;
+}

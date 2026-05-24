@@ -1,5 +1,5 @@
 import { ProviderAdapter, ProviderConfig } from './providerAdapter';
-import { ChatRequest, ChatResponse } from './providerTypes';
+import { ChatRequest, ChatResponse, ProviderCapabilities } from './providerTypes';
 import { info, error } from '../logger';
 
 export class OpenRouterProvider implements ProviderAdapter {
@@ -90,5 +90,14 @@ export class OpenRouterProvider implements ProviderAdapter {
       }
       throw err;
     }
+  }
+
+  getCapabilities(): ProviderCapabilities {
+    return {
+      supportsStreaming: true,
+      supportsImages: false,
+      supportsTools: true,
+      supportsSystemPrompts: true,
+    };
   }
 }
