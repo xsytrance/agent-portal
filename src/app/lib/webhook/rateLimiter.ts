@@ -5,9 +5,12 @@ export interface RateLimitEntry {
   windowStart: number;
 }
 
-export class SlidingWindowRateLimiter {
-  private windows = new Map<string, RateLimitEntry>();
+// Module-level variable to persist state across requests within the same Node process.
+// This is necessary because Next.js App Router API routes may re-instantiate objects,
+// but the underlying module cache is generally retained between requests in the same process.
+const globalWindows = new Map<string, RateLimitEntry>();
 
+export class SlidingWindowRateLimiter {
   constructor(private config: Record<string, { requests: number; windowMs: number }>) {}
 
   /** Returns true if request is allowed */
@@ -16,10 +19,10 @@ export class SlidingWindowRateLimiter {
     const cfg = this.config[sourceId];
     if (!cfg) return false; // unknown source = deny
 
-    const entry = this.windows.get(sourceId);
+    const entry = globalWindows.get(sourceId);
     if (!entry || now - entry.windowStart > cfg.windowMs) {
       // New window
-      this.windows.set(sourceId, { count: 1, windowStart: now });
+      globalWindows.set(sourceId, { count: 1, windowStart: now });
       return true;
     }
 
@@ -30,14 +33,14 @@ export class SlidingWindowRateLimiter {
 
   getRetryAfter(sourceId: string): number {
     const cfg = this.config[sourceId];
-    const entry = this.windows.get(sourceId);
+    const entry = globalWindows.get(sourceId);
     if (!cfg || !entry) return 0;
     return Math.ceil((entry.windowStart + cfg.windowMs - Date.now()) / 1000);
   }
 
   // For testing
   reset() {
-      this.windows.clear();
+      globalWindows.clear();
   }
 }
 
