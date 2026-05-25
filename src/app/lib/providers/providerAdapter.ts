@@ -1,10 +1,11 @@
-import { ChatRequest, ChatResponse } from './providerTypes';
+import { ChatRequest, ChatResponse, ProviderCapabilities } from './providerTypes';
 
 export interface ProviderAdapter {
   readonly providerId: string;
   readonly providerName: string;
   isAvailable(): Promise<boolean>;
   chat(request: ChatRequest): Promise<ChatResponse>;
+  getCapabilities(): ProviderCapabilities;
 }
 
 export interface ProviderConfig {
@@ -21,6 +22,10 @@ export class MockProvider implements ProviderAdapter {
   readonly providerName = 'Mock Provider';
 
   async isAvailable(): Promise<boolean> { return true; }
+
+  getCapabilities(): ProviderCapabilities {
+    return { stream: false, vision: false, tools: false };
+  }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const responses: Record<string, string> = {

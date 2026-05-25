@@ -13,8 +13,12 @@ import {
   FileText,
   List,
   ArrowLeft,
+  Settings,
+  CreditCard,
 } from 'lucide-react';
 
+import PresenceSettingsPanel from '@/app/components/admin/PresenceSettingsPanel';
+import BudgetControlsPanel from '@/app/components/admin/BudgetControlsPanel';
 import ApiKeysPanel from '@/app/components/admin/ApiKeysPanel';
 import AgentConfigPanel from '@/app/components/admin/AgentConfigPanel';
 import AutonomousLoopPanel from '@/app/components/admin/AutonomousLoopPanel';
@@ -22,7 +26,7 @@ import FeaturesPanel from '@/app/components/admin/FeaturesPanel';
 import PromptsPanel from '@/app/components/admin/PromptsPanel';
 import LogsPanel from '@/app/components/admin/LogsPanel';
 
-type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'features' | 'prompts' | 'logs';
+type PanelKey = 'apikeys' | 'agents' | 'autonomous' | 'features' | 'prompts' | 'logs' | 'presence' | 'budget';
 
 interface SidebarItem {
   key: PanelKey;
@@ -35,6 +39,8 @@ const sidebarItems: SidebarItem[] = [
   { key: 'apikeys', label: 'API Keys', icon: Key, section: 'configuration' },
   { key: 'agents', label: 'Agent Config', icon: Bot, section: 'configuration' },
   { key: 'autonomous', label: 'Autonomous Loop', icon: Zap, section: 'configuration' },
+  { key: 'presence', label: 'Presence Settings', icon: Settings, section: 'configuration' },
+  { key: 'budget', label: 'Budget Controls', icon: CreditCard, section: 'configuration' },
   { key: 'features', label: 'Features', icon: Sparkles, section: 'configuration' },
   { key: 'prompts', label: 'Prompts', icon: FileText, section: 'system' },
   { key: 'logs', label: 'Logs', icon: List, section: 'system' },
@@ -72,6 +78,10 @@ export default function Admin() {
             onChange={setAutonomousConfig}
           />
         );
+      case 'presence':
+        return <PresenceSettingsPanel />;
+      case 'budget':
+        return <BudgetControlsPanel />;
       case 'features':
         return <FeaturesPanel features={config.featureFlags} onChange={setFeatureFlags} />;
       case 'prompts':
