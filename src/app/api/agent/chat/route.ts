@@ -52,8 +52,7 @@ export async function POST(request: Request) {
       const { getProvider } = await import('@/app/lib/providers/providerAdapter');
       const orProvider = getProvider('openrouter');
       if (orProvider) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const history = (body.history || []).map((msg: any) => ({
+        const history = (body.history || []).map((msg: { role: string; content: string }) => ({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content
         })) as { role: 'user' | 'assistant'; content: string }[];
