@@ -1,15 +1,11 @@
-import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier } from './types';
+import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision } from './types';
 import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
 import { resolveFallback, FALLBACK_CHAIN } from './degradation';
 import { estimateCost } from './utils';
 
 // Helper mock to replace complex real cache checking for now
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function hasValidCacheEntry(eventType: string): boolean {
-    return false;
-}
-
-// Helper mock to replace complex rate limit checking logic for now
-function wouldExceedRateLimit(budget: TokenBudget, config: BudgetConfig): boolean {
     return false;
 }
 
@@ -128,17 +124,6 @@ export function selectProvider(
           estimatedCost: 0,
         };
       }
-    }
-
-    // Rule 10: Rate limit check
-    if (wouldExceedRateLimit(budget, config)) {
-      return {
-        provider: 'template',
-        reason: 'Rate limit protection -- template fallback',
-        tier,
-        estimatedTokens: registry?.estimatedTokens || 1500,
-        estimatedCost: 0,
-      };
     }
 
     // Rule 11: Per-agent budget check
