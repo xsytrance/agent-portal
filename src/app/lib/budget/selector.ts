@@ -1,4 +1,4 @@
-import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier } from './types';
+import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision } from './types';
 import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
 import { resolveFallback, FALLBACK_CHAIN } from './degradation';
 import { estimateCost } from './utils';
