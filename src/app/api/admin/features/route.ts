@@ -11,6 +11,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const updates = await request.json();
-  features = { ...features, ...updates };
+
+  // Prevent mass assignment / prototype pollution by only allowing known keys
+  const safeUpdates: Partial<typeof features> = {};
+  for (const key of Object.keys(updates)) {
+    if (key in features) {
+      safeUpdates[key as keyof typeof features] = updates[key];
+    }
+  }
+
+  features = { ...features, ...safeUpdates };
   return NextResponse.json({ features });
 }
