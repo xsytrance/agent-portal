@@ -11,6 +11,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const updates = await request.json();
-  features = { ...features, ...updates };
+
+  // Validate and sanitize input: only allow valid boolean features
+  if (updates && typeof updates === 'object') {
+    for (const key of Object.keys(updates)) {
+      if (key in features && typeof updates[key] === 'boolean') {
+        features[key as keyof typeof features] = updates[key];
+      }
+    }
+  }
+
   return NextResponse.json({ features });
 }
