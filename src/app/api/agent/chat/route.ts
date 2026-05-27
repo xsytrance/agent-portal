@@ -43,6 +43,9 @@ export async function POST(request: Request) {
   if (!message || typeof message !== 'string') {
     return NextResponse.json({ error: 'message is required and must be a string', mock: false }, { status: 400 });
   }
+  if (message.length > 4000) {
+    return NextResponse.json({ error: 'message exceeds maximum length of 4000 characters', mock: false }, { status: 400 });
+  }
 
   await ensureOpenRouterProvider();
 
