@@ -13,7 +13,12 @@ interface StoreStats {
   lastPruned: string;
 }
 
-let events: PortalEvent[] = [];
+interface StoredEvent {
+  event: PortalEvent;
+  timestampMs: number;
+}
+
+let events: StoredEvent[] = [];
 let sequence = 0;
 let lastPrunedAt = new Date().toISOString();
 
@@ -21,8 +26,7 @@ function prune(): void {
   const now = Date.now();
   const beforeCount = events.length;
   events = events.filter(e => {
-    const eventTime = new Date(e.timestamp).getTime();
-    return now - eventTime < MAX_AGE_MS;
+    return now - e.timestampMs < MAX_AGE_MS;
   });
   if (events.length > MAX_SIZE) events = events.slice(-PRUNE_TARGET);
   if (events.length < beforeCount) {
@@ -33,7 +37,7 @@ function prune(): void {
 
 export async function addEvent(event: PortalEvent): Promise<number> {
   prune();
-  events.push(event);
+  events.push({ event, timestampMs: new Date(event.timestamp).getTime() });
   sequence++;
   if (events.length > MAX_SIZE) {
     events = events.slice(-PRUNE_TARGET);
@@ -44,12 +48,12 @@ export async function addEvent(event: PortalEvent): Promise<number> {
 
 export async function getRecentEvents(count: number): Promise<PortalEvent[]> {
   prune();
-  return events.slice(-Math.min(count, MAX_SIZE));
+  return events.slice(-Math.min(count, MAX_SIZE)).map(e => e.event);
 }
 
 export async function getRecentByVisibility(count: number, visibility: PortalEventVisibility): Promise<PortalEvent[]> {
   prune();
-  return events.filter(e => e.visibility === visibility).slice(-Math.min(count, MAX_SIZE));
+  return events.filter(e => e.event.visibility === visibility).slice(-Math.min(count, MAX_SIZE)).map(e => e.event);
 }
 
 export async function getSequence(): Promise<number> { return sequence; }
