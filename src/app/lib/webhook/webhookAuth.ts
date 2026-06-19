@@ -98,8 +98,7 @@ export async function authenticateWebhook(
   if (!config) return { authenticated: false, error: 'Unknown source' };
   if (!config.enabled) return { authenticated: false, error: 'Source disabled' };
 
-  // For testing convenience
-  const secret = process.env[config.auth.secretEnvVar] || (process.env.NODE_ENV === 'test' ? 'test_secret' : undefined);
+  const secret = process.env[config.auth.secretEnvVar];
 
   if (!secret) return { authenticated: false, error: 'Webhook secret not configured' };
 
