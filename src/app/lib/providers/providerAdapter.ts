@@ -52,8 +52,7 @@ export function getProvider(id: string): ProviderAdapter | undefined {
 }
 
 export function getDefaultProvider(): ProviderAdapter {
-  for (const [, p] of providers) return p;
-  return new MockProvider();
+  return providers.values().next().value || new MockProvider();
 }
 
 export function listProviders(): Array<{ id: string; name: string }> {
