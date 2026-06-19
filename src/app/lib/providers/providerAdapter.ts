@@ -57,7 +57,7 @@ export function getDefaultProvider(): ProviderAdapter {
 }
 
 export function listProviders(): Array<{ id: string; name: string }> {
-  return Array.from(providers.values()).map(p => ({ id: p.providerId, name: p.providerName }));
+  return Array.from(providers.values(), p => ({ id: p.providerId, name: p.providerName }));
 }
 
 registerProvider(new MockProvider());
