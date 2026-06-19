@@ -152,8 +152,8 @@ export default function ParticleBackground({
     const connectionDist = 150;
     const connectionDistSq = connectionDist * connectionDist;
 
-    let head = new Int32Array(0);
-    let next = new Int32Array(0);
+    let head = new Int32Array(1024);
+    let next = new Int32Array(512);
 
     const animate = () => {
       if (!ctx || !canvas) return;
@@ -250,10 +250,10 @@ export default function ParticleBackground({
       const totalCells = cols * rows;
 
       if (head.length < totalCells) {
-        head = new Int32Array(totalCells);
+        head = new Int32Array(Math.max(head.length * 2, totalCells));
       }
       if (next.length < numParticles) {
-        next = new Int32Array(numParticles);
+        next = new Int32Array(Math.max(next.length * 2, numParticles));
       }
 
       head.fill(-1, 0, totalCells);
