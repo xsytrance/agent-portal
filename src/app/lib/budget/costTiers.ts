@@ -46,7 +46,7 @@ export const EVENT_TIER_REGISTRY: EventTierRegistry = {
 export function classifyEvent(eventType: string): BudgetTier {
   const entry = EVENT_TIER_REGISTRY[eventType];
   if (!entry) {
-    console.warn(`Unknown event type "\${eventType}" -- defaulting to expensive tier`);
+    console.warn(`Unknown event type "${eventType}" -- defaulting to expensive tier`);
     return 'expensive';
   }
   return entry.tier;
