@@ -35,14 +35,14 @@ export function middleware(request: NextRequest) {
  * Constant-time string comparison to prevent timing attacks.
  */
 export function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
+  let mismatch = a.length === b.length ? 0 : 1;
+  if (mismatch === 1) {
+    a = b;
   }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < b.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
-  return result === 0;
+  return mismatch === 0;
 }
 
 export const config = {

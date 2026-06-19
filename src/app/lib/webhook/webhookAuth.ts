@@ -61,14 +61,14 @@ export const sourceRegistry = new Map<WebhookSourceId, WebhookSourceConfig>([
 // Constant-time string comparison function to replace node:crypto/timingSafeEqual
 // Edge runtime compatibility
 function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
+  let mismatch = a.length === b.length ? 0 : 1;
+  if (mismatch === 1) {
+    a = b;
   }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < b.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
-  return result === 0;
+  return mismatch === 0;
 }
 
 // Function to generate an HMAC-SHA256 signature using the Web Crypto API
