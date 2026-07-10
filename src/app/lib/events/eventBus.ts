@@ -1,3 +1,5 @@
+import { error as logError } from '../logger';
+
 type EventCallback = (payload: any) => void;
 
 class AgentEventBus {
@@ -38,8 +40,8 @@ class AgentEventBus {
       this.listeners.get(eventType)!.forEach((callback) => {
         try {
           callback(payload);
-        } catch (error) {
-          console.error(`Error in event listener for ${eventType}:`, error);
+        } catch (err) {
+          void logError('AgentEventBus', `Error in event listener for ${eventType}`, { eventType, details: { error: err } });
         }
       });
     }
