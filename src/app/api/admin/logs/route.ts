@@ -8,7 +8,7 @@ export async function GET() {
     id: e.id, timestamp: e.timestamp,
     level: e.importance === 'critical' ? 'error' : e.importance === 'high' ? 'warn' : 'info',
     source: e.source, type: e.type, agentId: e.agentId,
-    message: `[${e.type}] ${JSON.stringify(e.payload).slice(0, 200)}`,
+    message: `[${e.type}] ${JSON.stringify(e.payload, (key, value) => typeof value === 'string' && value.length > 100 ? value.slice(0, 100) + '...' : value)}`,
   }));
   return NextResponse.json({ logs, stats });
 }
