@@ -5,7 +5,9 @@ import { useLenis } from '@/app/hooks/useLenis';
 import { useAutonomousLoop } from '@/app/hooks/useAutonomousLoop';
 import { useAtlasBrain } from '@/app/hooks/useAtlasBrain';
 import { useIdleDetection } from '@/app/hooks/useIdleDetection';
-import { useEffect } from 'react';
+import { usePortalEvents } from '@/app/hooks/usePortalEvents';
+import { useCallback, useEffect, useRef } from 'react';
+import type { PortalEvent } from '@/app/lib/events/eventTypes';
 import Navbar from './layout/Navbar';
 import Footer from './layout/Footer';
 import FloatingEye from './portal/FloatingEye';
@@ -30,6 +32,53 @@ function ThemeSync({ children }: { children: React.ReactNode }) {
   }, [activeAgent]);
 
   return <>{children}</>;
+}
+
+/**
+ * Wire the outside world into the presence layer: external events from
+ * webhooks surface here — the eye glances up (EXTERNAL_EVENT) and, when
+ * the event carries a public message, it appears as a speech bubble.
+ */
+function PortalEventsBridge({ brain }: { brain: ReturnType<typeof useAtlasBrain> }) {
+  const { setAgentMessage } = useAgent();
+  const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEvent = useCallback((event: PortalEvent) => {
+    brain.sendSignal('EXTERNAL_EVENT', { eventType: event.type });
+    const message = event.payload?.message;
+    if (typeof message === 'string' && message.trim()) {
+      setAgentMessage(message);
+      if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+      bubbleTimer.current = setTimeout(() => setAgentMessage(null), 6000);
+    }
+  }, [brain, setAgentMessage]);
+
+  usePortalEvents(handleEvent);
+
+  useEffect(() => () => {
+    if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+  }, []);
+
+  return null;
+}
+
+/** Press `/` anywhere (outside an input) to open the chat. */
+function KeyboardShortcuts() {
+  const { chatOpen, setChatOpen } = useAgent();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || chatOpen || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      e.preventDefault();
+      setChatOpen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatOpen, setChatOpen]);
+
+  return null;
 }
 
 /** Wire agent switching into AtlasBrain */
@@ -82,6 +131,8 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
     <AgentProvider>
       <ThemeSync>
         <AgentBrainSync brain={brain} />
+        <PortalEventsBridge brain={brain} />
+        <KeyboardShortcuts />
         <ParticleBackground atlasBrain={brain} />
         <div className="relative z-10">
           <Navbar />

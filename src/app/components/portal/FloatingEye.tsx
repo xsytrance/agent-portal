@@ -327,8 +327,12 @@ export default function FloatingEye({
   }, [reducedMotion, isClient, eyeBehavior, silenceMode, emotion]);
 
   const handleClick = useCallback(() => {
+    // A poke: the eye startles (instant blink + brain reaction), then chat opens.
+    atlasBrain?.sendSignal('POKE');
+    setBlink(true);
+    setTimeout(() => setBlink(false), 150);
     setChatOpen(true);
-  }, [setChatOpen]);
+  }, [atlasBrain, setChatOpen]);
 
   if (!isClient) return null;
 

@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server';
 import { authenticateWebhook, sourceRegistry } from '@/app/lib/webhook/webhookAuth';
 import { webhookRateLimiter, WebhookSourceId } from '@/app/lib/webhook/rateLimiter';
 import { normalizeWebhookPayload } from '@/app/lib/webhook/normalizer';
+import { signalToPortalEvent } from '@/app/lib/webhook/toPortalEvent';
+import { addEvent } from '@/app/lib/events/eventStore';
 
 export async function POST(
   request: NextRequest,
@@ -52,8 +54,9 @@ export async function POST(
     );
   }
 
-  // In a full implementation, this signal would be passed to the BehaviorDirector
-  // behaviorDirector.ingestSignal(signal);
+  // 6. Hand off to the presence layer: the event store feeds the
+  //    frontend, which reacts (eye glances up, particles stir).
+  const sequence = await addEvent(signalToPortalEvent(signal));
 
-  return NextResponse.json({ success: true, processed: true, signalId: signal.id }, { status: 200 });
+  return NextResponse.json({ success: true, processed: true, signalId: signal.id, sequence }, { status: 200 });
 }

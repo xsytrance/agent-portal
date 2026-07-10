@@ -1,43 +1,55 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { PortalEvent } from '@/app/lib/events/eventTypes';
 
-interface PortalEvent {
-  id: string;
-  type: string;
-  message: string;
-  timestamp: number;
-  agentId?: string;
-  metadata?: Record<string, unknown>;
-}
+const POLL_MS = 10000;
 
-export function usePortalEvents() {
+/**
+ * Polls the public portal-event feed and surfaces events that arrived
+ * since the page loaded. Polling (vs SSE) keeps this serverless-friendly
+ * and cheap; the presence layer doesn't need sub-second latency to make
+ * the eye glance up.
+ */
+export function usePortalEvents(onEvent?: (event: PortalEvent) => void) {
   const [events, setEvents] = useState<PortalEvent[]>([]);
   const [connected, setConnected] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenIds = useRef<Set<string>>(new Set());
+  const primed = useRef(false);
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
-  const connect = useCallback(() => {
+  const poll = useCallback(async () => {
     try {
-      const es = new EventSource('/api/agent/stream');
-      esRef.current = es;
-      es.onopen = () => setConnected(true);
-      es.onmessage = (e) => {
-        try { setEvents(p => [...p.slice(-99), JSON.parse(e.data)]); } catch { /* */ }
-      };
-      es.onerror = () => {
-        setConnected(false);
-        es.close();
-        if (reconnectRef.current) clearTimeout(reconnectRef.current);
-        reconnectRef.current = setTimeout(connect, 5000);
-      };
-    } catch { setConnected(false); }
+      const res = await fetch('/api/agent/events', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: { events?: PortalEvent[] } = await res.json();
+      const incoming = Array.isArray(data.events) ? data.events : [];
+      setConnected(true);
+
+      const fresh = incoming.filter(e => e?.id && !seenIds.current.has(e.id));
+      fresh.forEach(e => seenIds.current.add(e.id));
+
+      // Events already in the store when the page loaded are history,
+      // not something to react to now.
+      if (!primed.current) {
+        primed.current = true;
+        return;
+      }
+      if (fresh.length) {
+        setEvents(prev => [...prev.slice(-99), ...fresh]);
+        fresh.forEach(e => onEventRef.current?.(e));
+      }
+    } catch {
+      setConnected(false);
+    }
   }, []);
 
   useEffect(() => {
-    connect();
-    return () => { esRef.current?.close(); reconnectRef.current && clearTimeout(reconnectRef.current); };
-  }, [connect]);
+    poll();
+    const timer = setInterval(poll, POLL_MS);
+    return () => clearInterval(timer);
+  }, [poll]);
 
   return { events, connected };
 }

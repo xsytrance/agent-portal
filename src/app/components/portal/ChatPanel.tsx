@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAgent } from '@/app/context/AgentContext';
 import type { AtlasBrainAPI } from '@/app/hooks/useAtlasBrain';
@@ -9,24 +9,43 @@ interface Message {
   id: string;
   role: 'agent' | 'user';
   content: string;
-  isChart?: boolean;
 }
 
-const mockConversation: { role: 'agent' | 'user'; content: string; isChart?: boolean }[] = [
-  { role: 'agent', content: "Hey! I'm your AI agent. I can generate charts, run simulations, and even repaint this whole page. Watch this —" },
-  { role: 'agent', content: "chart", isChart: true },
-  { role: 'user', content: "That's amazing! What else can you do?" },
-  { role: 'agent', content: "I can react to visitors in real-time. See that particle field behind you? I control that. Move your cursor and watch them scatter." },
-  { role: 'agent', content: "I can also create content on demand — blog posts, summaries, reports. Even mini webpages that pop up right here." },
-  { role: 'agent', content: "Try typing something below, or just keep exploring. I'll be right here." },
-];
+interface ChatMeta {
+  mock: boolean;
+  budgetStatus: string | null;
+  sessionTokens: number;
+}
 
 interface ChatPanelProps {
   atlasBrain?: AtlasBrainAPI | null;
 }
 
+/** Stable per-tab session id so the server-side budget ledger can track us. */
+function getSessionId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  let id = sessionStorage.getItem('portal-session-id');
+  if (!id) {
+    id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    sessionStorage.setItem('portal-session-id', id);
+  }
+  return id;
+}
+
 export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   const { activeAgent, chatOpen, setChatOpen, setIsThinking } = useAgent();
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [typedText, setTypedText] = useState('');
+  const [meta, setMeta] = useState<ChatMeta>({ mock: false, budgetStatus: null, sessionTokens: 0 });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const typeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const welcomedAgents = useRef<Set<string>>(new Set());
 
   // Signal chat interaction to AtlasBrain
   useEffect(() => {
@@ -34,122 +53,139 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
       atlasBrain.signalChat();
     }
   }, [chatOpen, atlasBrain]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [typing, setTyping] = useState(false);
-  const [typedText, setTypedText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const convoIndex = useRef(0);
-  const isAutoPlaying = useRef(false);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typedText]);
 
-  // Auto-play mock conversation when chat opens
+  // Focus the input when the panel opens; Escape closes it
   useEffect(() => {
-    if (!chatOpen) {
-      setMessages([]);
-      convoIndex.current = 0;
-      isAutoPlaying.current = false;
-      return;
-    }
+    if (!chatOpen) return;
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setChatOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatOpen, setChatOpen]);
 
-    if (isAutoPlaying.current) return;
-    isAutoPlaying.current = true;
-
-    const playNext = () => {
-      if (convoIndex.current >= mockConversation.length) {
+  /** Typewriter: reveal an agent reply, then commit it to the transcript. */
+  const typeOutReply = useCallback((content: string, onDone?: () => void) => {
+    if (typeIntervalRef.current) clearInterval(typeIntervalRef.current);
+    setTyping(true);
+    setTypedText('');
+    let charIndex = 0;
+    typeIntervalRef.current = setInterval(() => {
+      if (charIndex < content.length) {
+        charIndex = Math.min(content.length, charIndex + 2);
+        setTypedText(content.slice(0, charIndex));
+      } else {
+        if (typeIntervalRef.current) clearInterval(typeIntervalRef.current);
+        typeIntervalRef.current = null;
         setTyping(false);
-        return;
-      }
-
-      const msg = mockConversation[convoIndex.current];
-      convoIndex.current++;
-
-      if (msg.role === 'agent' && !msg.isChart) {
-        setTyping(true);
-        setIsThinking(true);
-        let charIndex = 0;
         setTypedText('');
-
-        const typeInterval = setInterval(() => {
-          if (charIndex < msg.content.length) {
-            setTypedText(msg.content.slice(0, charIndex + 1));
-            charIndex++;
-          } else {
-            clearInterval(typeInterval);
-            setTyping(false);
-            setIsThinking(false);
-            setTypedText('');
-            setMessages((prev) => [...prev, {
-              id: Date.now().toString() + Math.random(),
-              role: 'agent',
-              content: msg.content,
-            }]);
-            setTimeout(playNext, 1500);
-          }
-        }, 30);
-      } else if (msg.isChart) {
-        setTyping(false);
-        setIsThinking(false);
         setMessages((prev) => [...prev, {
           id: Date.now().toString() + Math.random(),
           role: 'agent',
-          content: '',
-          isChart: true,
+          content,
         }]);
-        setTimeout(playNext, 1500);
-      } else {
-        setTyping(false);
-        setMessages((prev) => [...prev, {
-          id: Date.now().toString() + Math.random(),
-          role: 'user',
-          content: msg.content,
-        }]);
-        setTimeout(playNext, 1000);
+        onDone?.();
       }
-    };
+    }, 18);
+  }, []);
 
-    setTimeout(playNext, 500);
+  useEffect(() => () => {
+    if (typeIntervalRef.current) clearInterval(typeIntervalRef.current);
+  }, []);
 
-    return () => {
-      setIsThinking(false);
-    };
-  }, [chatOpen, setIsThinking]);
+  // Restore per-agent transcript; greet on first open of each agent
+  useEffect(() => {
+    if (!chatOpen) return;
+    const stored = sessionStorage.getItem(`portal-chat-${activeAgent.id}`);
+    if (stored) {
+      try {
+        setMessages(JSON.parse(stored));
+        return;
+      } catch { /* fall through to greeting */ }
+    }
+    setMessages([]);
+    if (!welcomedAgents.current.has(activeAgent.id)) {
+      welcomedAgents.current.add(activeAgent.id);
+      setIsThinking(true);
+      setTimeout(() => {
+        setIsThinking(false);
+        typeOutReply(activeAgent.welcomeMessage);
+      }, 600);
+    }
+  }, [chatOpen, activeAgent.id, activeAgent.welcomeMessage, setIsThinking, typeOutReply]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  // Persist transcript per agent
+  useEffect(() => {
+    if (messages.length === 0) return;
+    try {
+      sessionStorage.setItem(`portal-chat-${activeAgent.id}`, JSON.stringify(messages.slice(-40)));
+    } catch { /* storage full — transcript just won't persist */ }
+  }, [messages, activeAgent.id]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || typing) return;
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: text,
     };
-    setMessages((prev) => [...prev, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInput('');
+    setTyping(true);
+    setIsThinking(true);
 
-    // Mock agent response
-    setTimeout(() => {
-      setTyping(true);
-      setIsThinking(true);
-      const responses = activeAgent.chatResponses;
-      const response = responses[Math.floor(Math.random() * responses.length)];
+    try {
+      const res = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          agentId: activeAgent.id,
+          sessionId: getSessionId(),
+          history: nextMessages.slice(-16).map((m) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content,
+          })),
+        }),
+      });
 
-      setTimeout(() => {
-        setTyping(false);
-        setIsThinking(false);
-        setMessages((prev) => [...prev, {
-          id: Date.now().toString() + Math.random(),
-          role: 'agent',
-          content: response,
-        }]);
-      }, 1500);
-    }, 500);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: {
+        response: string;
+        emotion?: string;
+        mock?: boolean;
+        usage?: { prompt: number; completion: number };
+        budget?: { status: string; tokensUsed: number; totalBudget: number };
+      } = await res.json();
+
+      setMeta({
+        mock: !!data.mock,
+        budgetStatus: data.budget?.status ?? null,
+        sessionTokens: data.budget?.tokensUsed ?? 0,
+      });
+
+      // The reply's emotion drives the eye and the particles.
+      if (data.emotion && atlasBrain) {
+        atlasBrain.sendSignal('EMOTION', { emotion: data.emotion });
+      }
+
+      setIsThinking(false);
+      typeOutReply(data.response);
+    } catch {
+      setIsThinking(false);
+      typeOutReply("*static* Connection hiccup — I'm still here, try that again.");
+    }
   };
+
+  const budgetWorry = meta.budgetStatus === 'warning' || meta.budgetStatus === 'critical' || meta.budgetStatus === 'exhausted';
 
   return (
     <AnimatePresence>
@@ -203,10 +239,24 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
                 <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: '0.6875rem', color: '#CBD5E1' }}>
-                    Online
+                    {meta.mock ? 'Online · demo mode' : 'Online'}
                   </span>
                 </div>
               </div>
+              {budgetWorry && (
+                <span
+                  title={`Session token budget: ${meta.budgetStatus}`}
+                  className="px-2 py-1 rounded-full"
+                  style={{
+                    fontFamily: "'Space Mono', monospace",
+                    fontSize: '0.625rem',
+                    color: meta.budgetStatus === 'warning' ? '#FBBF24' : '#F87171',
+                    border: `1px solid ${meta.budgetStatus === 'warning' ? '#FBBF2455' : '#F8717155'}`,
+                  }}
+                >
+                  {meta.budgetStatus === 'warning' ? 'budget low' : 'budget spent'}
+                </span>
+              )}
               <button
                 onClick={() => setChatOpen(false)}
                 className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:bg-white/10"
@@ -251,21 +301,7 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
                       backdropFilter: msg.role === 'agent' ? 'blur(10px)' : 'none',
                     }}
                   >
-                    {msg.isChart ? (
-                      <div>
-                        <img
-                          src="/demo-mock-chart.png"
-                          alt="Chart"
-                          className="w-full rounded-lg mb-2"
-                          style={{ maxHeight: 200, objectFit: 'cover' }}
-                        />
-                        <p className="m-0" style={{ fontSize: '0.875rem', color: '#CBD5E1' }}>
-                          Your simulated traffic data — notice the weekend spike?
-                        </p>
-                      </div>
-                    ) : (
-                      msg.content
-                    )}
+                    {msg.content}
                   </div>
                 </div>
               ))}
@@ -336,11 +372,12 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
             {/* Input */}
             <div className="px-5 py-4 flex items-center gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Type a message..."
+                placeholder={`Message ${activeAgent.name}...`}
                 className="flex-1 px-4 py-3 text-white outline-none transition-all duration-300"
                 style={{
                   backgroundColor: 'rgba(26, 26, 46, 0.6)',
