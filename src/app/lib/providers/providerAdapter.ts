@@ -1,4 +1,5 @@
 import { ChatRequest, ChatResponse, ProviderCapabilities } from './providerTypes';
+import { agents } from '../agents/starterAgents';
 
 export interface ProviderAdapter {
   readonly providerId: string;
@@ -17,6 +18,15 @@ export interface ProviderConfig {
   enabled: boolean;
 }
 
+// Plausible demo-mode emotions per agent, so the presence layer still
+// reacts to replies when no LLM is configured.
+const MOCK_EMOTIONS: Record<string, string[]> = {
+  nova: ['curious', 'excited', 'thinking', 'happy'],
+  jinx: ['mischievous', 'excited', 'surprised', 'dizzy'],
+  atlas: ['neutral', 'thinking', 'happy', 'curious'],
+  chatty: ['mischievous', 'excited', 'grumpy', 'love', 'surprised'],
+};
+
 export class MockProvider implements ProviderAdapter {
   readonly providerId = 'mock';
   readonly providerName = 'Mock Provider';
@@ -28,14 +38,16 @@ export class MockProvider implements ProviderAdapter {
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
-    const responses: Record<string, string> = {
-      nova: `Professor Nova here! You asked: "${request.message}". *beep boop* Fascinating results!`,
-      jinx: `POOF! Jinx answers: "${request.message}"! *confetti* Was that helpful? Who knows!`,
-      atlas: `I've processed "${request.message}". Here is my analysis: concise, accurate, and helpful.`,
-    };
     const agentId = request.agentId || 'nova';
+    const agent = agents.find(a => a.id === agentId);
+    const lines = agent?.chatResponses?.length
+      ? agent.chatResponses
+      : [`Agent ${agentId} finds "${request.message}" interesting!`];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    const emotions = MOCK_EMOTIONS[agentId] || ['neutral'];
+    const emotion = emotions[Math.floor(Math.random() * emotions.length)];
     return {
-      content: responses[agentId] || `[Mock] Agent ${agentId} says: "${request.message}" is interesting!`,
+      content: `[${emotion}] ${line}`,
       model: 'mock/demo',
     };
   }

@@ -6,9 +6,18 @@ export type AtlasMode = "OBSERVING" | "REACTING" | "THINKING" | "RESTING";
 export type AtlasMood = "calm" | "curious" | "thoughtful";
 export type SilenceMode = "OBSERVING" | "RESTING" | "THINKING";
 
+// Temperament — ported from sayhai's mood drift: a slow-changing baseline
+// independent of any one interaction, so some sessions the presence just
+// wakes up feeling chaotic (or mellow, or lovey). It tints behavior,
+// never overrides the moment.
+export type Temperament =
+  | "chipper" | "mellow" | "chaotic" | "broody"
+  | "lovey" | "dramatic" | "sleepy" | "sassy";
+
 export interface AtlasState {
   mode: AtlasMode;
   mood: AtlasMood;
+  temperament: Temperament;
   attentionLevel: number; // 0-100
   silenceMode: SilenceMode;
   sessionTimeMs: number; // ms since session start
@@ -50,7 +59,11 @@ export interface ParticleMood {
 }
 
 export interface BehaviorSignal {
-  type: "IDLE" | "HOVER" | "SCROLL" | "CHAT" | "AGENT_SWITCH" | "TICK";
+  type:
+    | "IDLE" | "HOVER" | "SCROLL" | "CHAT" | "AGENT_SWITCH" | "TICK"
+    | "EMOTION"        // a chat reply landed carrying an [emotion] tag
+    | "POKE"           // the user clicked the eye
+    | "EXTERNAL_EVENT"; // something arrived from the outside world (webhook/SSE)
   timestamp: number;
   payload?: Record<string, unknown>;
 }

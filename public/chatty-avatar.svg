@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="80%">
+      <stop offset="0%" stop-color="#123a34"/>
+      <stop offset="100%" stop-color="#0a1f2b"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="50" fill="url(#bg)"/>
+  <!-- tail feathers -->
+  <path d="M28 78 Q18 92 24 96 Q30 92 34 82 Z" fill="#FFB84D"/>
+  <path d="M34 80 Q28 96 34 98 Q40 93 42 84 Z" fill="#2EE6A8"/>
+  <!-- body -->
+  <ellipse cx="50" cy="66" rx="24" ry="26" fill="#2EE6A8"/>
+  <ellipse cx="50" cy="72" rx="16" ry="18" fill="#A7F3E4"/>
+  <!-- wing -->
+  <path d="M66 56 Q80 66 70 84 Q62 78 60 64 Z" fill="#1FBF8A"/>
+  <!-- head -->
+  <circle cx="48" cy="36" r="22" fill="#2EE6A8"/>
+  <!-- crest -->
+  <path d="M40 17 Q36 6 44 10 Q44 4 51 9 Q53 2 58 11 Q64 8 60 18 Z" fill="#FFB84D"/>
+  <!-- eye patch -->
+  <circle cx="56" cy="34" r="11" fill="#ffe7c2"/>
+  <!-- eye: big and slightly crazed -->
+  <circle cx="56" cy="34" r="6.5" fill="#ffffff"/>
+  <circle cx="57.5" cy="33" r="3.4" fill="#1a1a2e"/>
+  <circle cx="58.8" cy="31.8" r="1.1" fill="#ffffff"/>
+  <!-- beak, mid-squawk -->
+  <path d="M34 34 Q22 36 30 42 Q34 44 38 41 Z" fill="#FFB84D"/>
+  <path d="M35 42 Q28 48 34 49 Q38 48 39 44 Z" fill="#E89A2B"/>
+  <!-- little feet gripping the frame -->
+  <path d="M42 90 q-2 5 1 6 M46 91 q0 5 3 5 M56 91 q0 5 -3 5 M60 90 q2 5 -1 6" stroke="#E89A2B" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+</svg>

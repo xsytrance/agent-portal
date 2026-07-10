@@ -1,6 +1,6 @@
 import { describe, it, expect, spyOn, afterEach } from 'bun:test';
 import { isEventAllowed, resolveFallback } from './degradation';
-import { TokenBudget, BudgetConfig, BudgetTier, BudgetStatus } from './types';
+import { TokenBudget, BudgetConfig, BudgetStatus } from './types';
 
 function createMockBudget(status: BudgetStatus = 'healthy', alertsTriggered: string[] = []): TokenBudget {
   return {
@@ -11,7 +11,7 @@ function createMockBudget(status: BudgetStatus = 'healthy', alertsTriggered: str
   } as unknown as TokenBudget;
 }
 
-function createMockConfig(overrides: any = {}): BudgetConfig {
+function createMockConfig(overrides: Record<string, unknown> = {}): BudgetConfig {
   return {
     degradationSettings: {
       warningTemplateRate: 0.5,
@@ -24,8 +24,9 @@ function createMockConfig(overrides: any = {}): BudgetConfig {
 
 describe('degradation', () => {
   afterEach(() => {
-    if (typeof (Math.random as any).mockRestore === 'function') {
-      (Math.random as any).mockRestore();
+    const maybeMocked = Math.random as unknown as { mockRestore?: () => void };
+    if (typeof maybeMocked.mockRestore === 'function') {
+      maybeMocked.mockRestore();
     }
   });
 

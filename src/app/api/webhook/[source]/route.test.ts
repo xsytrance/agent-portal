@@ -12,13 +12,22 @@ mock.module('next/server', () => ({
   NextRequest: Request,
 }));
 
+const setNodeEnv = (value: string) => {
+  Object.defineProperty(process.env, 'NODE_ENV', {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+};
+
 describe('Webhook Dynamic Route', () => {
-  let POST: unknown;
-  let webhookRateLimiter: unknown;
+  let POST: typeof import('./route').POST;
+  let webhookRateLimiter: typeof import('@/app/lib/webhook/rateLimiter').webhookRateLimiter;
 
   beforeEach(async () => {
     // Reset env vars and modules
-    process.env.NODE_ENV = 'test';
+    setNodeEnv('test');
     process.env.WEBHOOK_SECRET_OPENCLAW = 'test_secret';
 
     // Dynamic import to avoid ESM issues after mock
@@ -31,7 +40,7 @@ describe('Webhook Dynamic Route', () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = 'development';
+    setNodeEnv('development');
     delete process.env.WEBHOOK_SECRET_OPENCLAW;
     mock.restore();
   });

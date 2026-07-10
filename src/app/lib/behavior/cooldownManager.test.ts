@@ -1,4 +1,4 @@
-import { test, expect, describe, it, setSystemTime, afterEach, beforeEach } from "bun:test";
+import { expect, describe, it, setSystemTime, afterEach } from "bun:test";
 import { CooldownManager, DEFAULT_COOLDOWN_DURATIONS } from "./cooldownManager";
 import { QuietPeriodState } from "./types";
 

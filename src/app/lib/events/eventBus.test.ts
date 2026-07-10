@@ -2,7 +2,7 @@ import { expect, test, describe, spyOn, afterEach, mock } from "bun:test";
 import { eventBus } from "./eventBus";
 
 describe("AgentEventBus", () => {
-  let consoleSpy: any;
+  let consoleSpy: ReturnType<typeof spyOn> | undefined;
 
   afterEach(() => {
     eventBus.clear();

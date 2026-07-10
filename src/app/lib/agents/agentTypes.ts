@@ -11,6 +11,10 @@ export interface Agent {
   welcomeMessage: string;
   idleMessages: string[];
   chatResponses: string[];
+  /** Persona sent to the LLM as the system prompt (emotion protocol is appended server-side) */
+  systemPrompt?: string;
+  /** Sampling temperature for this persona (chaotic agents run hotter) */
+  temperature?: number;
 }
 
 export interface ProviderConfig {

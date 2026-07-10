@@ -1,5 +1,4 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { NextResponse } from 'next/server';
 
 // Mock NextResponse
 mock.module('next/server', () => ({

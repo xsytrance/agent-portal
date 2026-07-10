@@ -1,9 +1,34 @@
 import {
-  AtlasState, AtlasMode, AtlasMood, SilenceMode,
+  AtlasState, AtlasMode, AtlasMood, SilenceMode, Temperament,
   BehaviorSignal, BehaviorDecision, EyeBehavior, ParticleMood, AtlasConfig,
 } from './types';
 import { DEFAULT_ATLAS_CONFIG } from './config';
 import { getRareMessage } from './rare';
+
+const TEMPERAMENTS: Temperament[] = [
+  'chipper', 'mellow', 'chaotic', 'broody', 'lovey', 'dramatic', 'sleepy', 'sassy',
+];
+// sayhai drifts every ~3.5h on a desktop; a webpage session lives in minutes,
+// so the presence's internal weather shifts every ~3 min instead.
+const TEMPERAMENT_PERIOD_MS = 3 * 60 * 1000;
+const TEMPERAMENT_SHIFT_CHANCE = 0.6;
+
+// How a chat reply's emotion moves the presence. Ported from sayhai's
+// emotion → face-pose table, translated to mode/mood.
+const EMOTION_REACTIONS: Record<string, { mode: AtlasMode; mood: AtlasMood; holdMs: number }> = {
+  neutral:     { mode: 'OBSERVING', mood: 'calm',       holdMs: 0 },
+  happy:       { mode: 'REACTING',  mood: 'calm',       holdMs: 2500 },
+  excited:     { mode: 'REACTING',  mood: 'curious',    holdMs: 3500 },
+  mischievous: { mode: 'REACTING',  mood: 'curious',    holdMs: 3000 },
+  curious:     { mode: 'OBSERVING', mood: 'curious',    holdMs: 3000 },
+  thinking:    { mode: 'THINKING',  mood: 'thoughtful', holdMs: 3000 },
+  surprised:   { mode: 'REACTING',  mood: 'curious',    holdMs: 2000 },
+  sad:         { mode: 'RESTING',   mood: 'thoughtful', holdMs: 3500 },
+  sleepy:      { mode: 'RESTING',   mood: 'calm',       holdMs: 4000 },
+  grumpy:      { mode: 'OBSERVING', mood: 'thoughtful', holdMs: 2500 },
+  love:        { mode: 'REACTING',  mood: 'calm',       holdMs: 3000 },
+  dizzy:       { mode: 'REACTING',  mood: 'curious',    holdMs: 2500 },
+};
 
 export class AtlasBrain {
   private state: AtlasState;
@@ -30,6 +55,9 @@ export class AtlasBrain {
   // --- emotional polish: thinking micro-dart ---
   private thinkingMicroDartMs: number = 0;
 
+  // --- temperament drift (sayhai port) ---
+  private temperamentSinceMs: number = 0;
+
   constructor(config?: Partial<AtlasConfig>) {
     this.config = { ...DEFAULT_ATLAS_CONFIG, ...config };
     this.startTime = Date.now();
@@ -37,6 +65,7 @@ export class AtlasBrain {
     this.state = {
       mode: 'OBSERVING',
       mood: 'calm',
+      temperament: TEMPERAMENTS[Math.floor(Math.random() * TEMPERAMENTS.length)],
       attentionLevel: 100,
       silenceMode: 'OBSERVING',
       sessionTimeMs: 0,
@@ -79,6 +108,9 @@ export class AtlasBrain {
     }
 
     this.processSignal(signal);
+
+    // --- temperament drift: the session's internal weather ---
+    this.maybeDriftTemperament();
 
     // --- emotional polish updates ---
     this.updatePartialAttention();
@@ -127,6 +159,42 @@ export class AtlasBrain {
         this.setMood('calm');
         this.state.attentionLevel = 100;
         break;
+      case 'EMOTION': {
+        // A reply landed carrying its emotion — react to WHAT was said.
+        const emotion = typeof signal.payload?.emotion === 'string' ? signal.payload.emotion : 'neutral';
+        const reaction = EMOTION_REACTIONS[emotion] ?? EMOTION_REACTIONS.neutral;
+        this.setMood(reaction.mood);
+        this.goTo(reaction.mode);
+        if (reaction.holdMs > 0) {
+          this.schedule(() => {
+            if (this.state.mode === reaction.mode) {
+              this.setMood('calm');
+              this.goTo('OBSERVING');
+            }
+          }, reaction.holdMs);
+        }
+        break;
+      }
+      case 'POKE':
+        // The user clicked the eye. Startle, then settle.
+        this.setMood('curious');
+        this.goTo('REACTING');
+        this.state.attentionLevel = Math.min(100, this.state.attentionLevel + 10);
+        this.schedule(() => {
+          if (this.state.mode === 'REACTING') { this.setMood('calm'); this.goTo('OBSERVING'); }
+        }, 1800);
+        break;
+      case 'EXTERNAL_EVENT':
+        // Something arrived from the outside world — glance up, process it.
+        this.setMood('curious');
+        this.goTo('THINKING');
+        this.cognitionCueActive = 'processing';
+        this.lastCognitionCueMs = this.state.sessionTimeMs;
+        this.schedule(() => {
+          this.cognitionCueActive = 'none';
+          if (this.state.mode === 'THINKING') { this.goTo('REACTING'); }
+        }, 1200);
+        break;
       case 'TICK':
         if (this.state.isIdle && canChange && this.state.mode !== 'RESTING') {
           this.goTo('RESTING');
@@ -159,6 +227,15 @@ export class AtlasBrain {
   }
 
   private setMood(mood: AtlasMood): void { this.state.mood = mood; }
+
+  private maybeDriftTemperament(): void {
+    if (this.state.sessionTimeMs - this.temperamentSinceMs < TEMPERAMENT_PERIOD_MS) return;
+    this.temperamentSinceMs = this.state.sessionTimeMs;
+    if (Math.random() < TEMPERAMENT_SHIFT_CHANCE) {
+      const others = TEMPERAMENTS.filter(t => t !== this.state.temperament);
+      this.state.temperament = others[Math.floor(Math.random() * others.length)];
+    }
+  }
 
   private updateDensity(): void {
     if (this.state.attentionLevel < this.config.attentionThresholdCritical) this.state.density = 'ambient';
@@ -316,7 +393,34 @@ export class AtlasBrain {
     if (attn < 50) { base.animationIntensity *= 0.5; base.movementRange *= 0.6; }
     if (attn < 25) { base.animationIntensity *= 0.3; base.trackingSpeed *= 0.5; }
 
+    this.applyTemperamentToEye(base);
+
     return base;
+  }
+
+  // Temperament tints, never overrides: small multipliers on top of
+  // whatever the current mode decided.
+  private applyTemperamentToEye(eye: EyeBehavior): void {
+    switch (this.state.temperament) {
+      case 'chipper':
+        eye.animationIntensity *= 1.15; eye.blinkRateMin *= 0.85; eye.blinkRateMax *= 0.85; break;
+      case 'mellow':
+        eye.animationIntensity *= 0.9; eye.trackingSpeed *= 0.85; break;
+      case 'chaotic':
+        eye.animationIntensity *= 1.25; eye.movementRange *= 1.2; break;
+      case 'broody':
+        eye.eyelidOpenness = Math.max(0.3, eye.eyelidOpenness - 0.1); eye.animationIntensity *= 0.85; break;
+      case 'lovey':
+        eye.pupilDilation *= 1.1; break;
+      case 'dramatic':
+        eye.pupilDilation *= 1.08; eye.movementRange *= 1.15; break;
+      case 'sleepy':
+        eye.blinkRateMin *= 1.3; eye.blinkRateMax *= 1.3;
+        eye.eyelidOpenness = Math.max(0.3, eye.eyelidOpenness - 0.15);
+        eye.animationIntensity *= 0.75; break;
+      case 'sassy':
+        eye.trackingSpeed *= 1.3; break;
+    }
   }
 
   private buildParticleMood(): ParticleMood {
@@ -333,6 +437,19 @@ export class AtlasBrain {
     if (this.state.density === 'low') base.count = Math.floor(base.count * 0.75);
     if (this.state.mood === 'curious') { base.color = '#60A5FA'; base.speed *= 1.2; }
     if (this.state.mood === 'thoughtful') { base.color = '#2563EB'; base.speed *= 0.8; }
+
+    // Temperament weather on the particle field
+    switch (this.state.temperament) {
+      case 'chipper':  base.speed *= 1.2; base.count = Math.min(50, base.count + 5); break;
+      case 'mellow':   base.speed *= 0.85; base.driftAmplitude *= 0.8; break;
+      case 'chaotic':  base.speed *= 1.35; base.driftAmplitude *= 1.5; break;
+      case 'broody':   base.speed *= 0.7; base.connectionOpacity *= 0.8; break;
+      case 'lovey':    base.connectionOpacity *= 1.3; break;
+      case 'dramatic': base.driftAmplitude *= 1.4; base.connectionOpacity *= 1.15; break;
+      case 'sleepy':   base.speed *= 0.6; base.count = Math.floor(base.count * 0.85); break;
+      case 'sassy':    base.speed *= 1.1; break;
+    }
+
     return base;
   }
 

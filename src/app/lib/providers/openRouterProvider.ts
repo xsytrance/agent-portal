@@ -62,7 +62,13 @@ export class OpenRouterProvider implements ProviderAdapter {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages: [...(request.history || []), { role: 'user', content: request.message }],
+          messages: [
+            ...(request.systemPrompt ? [{ role: 'system', content: request.systemPrompt }] : []),
+            ...(request.history || []),
+            { role: 'user', content: request.message },
+          ],
+          ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
         }),
       });
 

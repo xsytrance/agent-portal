@@ -71,7 +71,7 @@ describe('validateEvent', () => {
     expect(validateEvent({ ...base, payload: { big: 'x'.repeat(65537) } }).errors).toContain('payload exceeds max size of 65536 bytes');
 
     // Not serializable
-    const circular: any = {};
+    const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(validateEvent({ ...base, payload: circular }).errors).toContain('payload is not serializable');
   });

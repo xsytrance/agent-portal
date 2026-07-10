@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, setSystemTime, spyOn, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, setSystemTime, spyOn } from 'bun:test';
 import { AtlasBrain } from './brain';
 import { AtlasConfig, BehaviorSignal } from './types';
 
@@ -23,7 +23,7 @@ describe('AtlasBrain Mode Transitions', () => {
   };
 
   const tick = (type: BehaviorSignal['type'] = 'TICK') => {
-    brain.tick({ type });
+    brain.tick({ type, timestamp: Date.now() });
   };
 
   beforeEach(() => {
@@ -35,10 +35,10 @@ describe('AtlasBrain Mode Transitions', () => {
     scheduledCallbacks = [];
 
     // Mock setTimeout to capture callbacks without executing them
-    setTimeoutSpy = spyOn(globalThis, 'setTimeout').mockImplementation((cb: any, delay: any) => {
-      scheduledCallbacks.push({ cb, delay });
-      return 123 as any; // dummy timer id
-    });
+    setTimeoutSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((cb: () => void, delay?: number) => {
+      scheduledCallbacks.push({ cb, delay: delay ?? 0 });
+      return 123 as unknown as ReturnType<typeof setTimeout>; // dummy timer id
+    }) as unknown as typeof setTimeout);
 
     brain = createBrain();
   });

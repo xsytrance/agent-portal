@@ -5,6 +5,7 @@ import { AtlasState } from './types';
 const mockState: AtlasState = {
   mode: 'OBSERVING',
   mood: 'calm',
+  temperament: 'mellow',
   attentionLevel: 50,
   silenceMode: 'OBSERVING',
   sessionTimeMs: 0,
