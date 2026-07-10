@@ -23,6 +23,8 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
   const [newIdleMessage, setNewIdleMessage] = useState('');
   const [newDemoResponse, setNewDemoResponse] = useState('');
 
+  const activeAgentName = agents.find((a) => a.id === activeAgentId)?.name || 'the agent';
+
   const configIndex = promptConfigs.findIndex((p) => p.agentId === activeAgentId);
   const config = promptConfigs[configIndex] || promptConfigs[0];
 
@@ -225,7 +227,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
                 }}
                 maxLength={500}
                 rows={4}
-                placeholder={`Hello! I'm ${agents.find((a) => a.id === activeAgentId)?.name || 'the agent'}. How can I help you today?`}
+                placeholder={`Hello! I'm ${activeAgentName}. How can I help you today?`}
                 className="w-full px-4 py-3 text-white outline-none resize-none"
                 style={{
                   backgroundColor: 'rgba(26, 26, 46, 0.6)',
@@ -467,7 +469,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
             const defaultConfig = promptConfigs[configIndex];
             if (defaultConfig) {
               updateConfig({
-                systemPrompt: `You are ${agents.find((a) => a.id === activeAgentId)?.name || 'the agent'}.`,
+                systemPrompt: `You are ${activeAgentName}.`,
                 welcomeMessages: [],
                 personalityDescription: '',
                 responseStyle: 'conversational',
@@ -515,7 +517,7 @@ export default function PromptsPanel({ promptConfigs, onChange }: PromptsPanelPr
                 color: '#1A1A2E',
               }}
             >
-              Prompts updated for {agents.find((a) => a.id === activeAgentId)?.name}
+              Prompts updated for {activeAgentName}
             </span>
           </motion.div>
         )}
