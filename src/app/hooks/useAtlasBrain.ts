@@ -109,11 +109,6 @@ export function useAtlasBrain(): AtlasBrainAPI {
     };
   }, [updateFromDecision]);
 
-// ── Internal Hook: Signals ────────────────────────────────────────
-function useAtlasBrainSignals(
-  brainRef: React.MutableRefObject<AtlasBrain | null>,
-  applyDecision: (d: BehaviorDecision) => void
-) {
   const sendSignal = useCallback(
     (
       type: BehaviorSignal['type'],

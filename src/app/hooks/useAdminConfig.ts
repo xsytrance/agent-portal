@@ -88,6 +88,7 @@ export interface LogEntry {
 
 export interface AdminConfig {
   safety?: { showMockIndicator?: boolean, maxSessionDurationMinutes?: number, idleTimeoutMinutes?: number, maxProviderErrors?: number };
+  alerts?: { emailAlertsEnabled?: boolean, webhookAlertsEnabled?: boolean, alertEmail?: string, alertWebhookUrl?: string };
   presenceConfig?: PresenceConfig;
   budgetConfig?: BudgetConfig;
   apiKeys: ApiKey[];

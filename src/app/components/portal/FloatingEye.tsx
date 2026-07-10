@@ -234,37 +234,13 @@ export default function FloatingEye({
       const eyeCy = eyeRect.top + eyeRect.height / 2;
 
       // ── 3. Partial attention: drift toward secondary target ──
-      const partialAttention = eyeBehavior?.partialAttention;
-      const secondaryTarget = eyeBehavior?.secondaryTarget;
-      let targetX = 0;
-      let targetY = 0;
-
-      if (partialAttention && secondaryTarget) {
-        const sdx = secondaryTarget.x - eyeCx;
-        const sdy = secondaryTarget.y - eyeCy;
-        const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
-        targetX =
-          sdist > 0
-            ? (sdx / sdist) * Math.min(sdist * 0.03, movementRange * 0.5)
-            : 0;
-        targetY =
-          sdist > 0
-            ? (sdy / sdist) * Math.min(sdist * 0.03, movementRange * 0.5)
-            : 0;
-      } else {
-        const dx = mouseRef.current.x - eyeCx;
-        const dy = mouseRef.current.y - eyeCy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        targetX =
-          dist > 0 ? (dx / dist) * Math.min(dist * 0.05, movementRange) : 0;
-        targetY =
-          dist > 0 ? (dy / dist) * Math.min(dist * 0.05, movementRange) : 0;
-      }
-
-      pupilPos.current = {
-        x: lerp(pupilPos.current.x, targetX, trackingSpeed),
-        y: lerp(pupilPos.current.y, targetY, trackingSpeed),
-      };
+      pupilPos.current = updateEyeTracking(
+        eyeCx,
+        eyeCy,
+        mouseRef.current,
+        pupilPos.current,
+        eyeBehavior as EyeBehavior,
+      );
 
       // ── 6. THINKING mode: occasional pupil dart ──
       const { dartX, dartY } = updatePupilDarts(dartRef.current, eyeBehavior as EyeBehavior);
