@@ -46,13 +46,20 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const typeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const welcomedAgents = useRef<Set<string>>(new Set());
+  // Which agent the in-memory transcript belongs to — guards against
+  // persisting one agent's conversation under another's storage key
+  // after a switch.
+  const transcriptAgentRef = useRef<string | null>(null);
 
-  // Signal chat interaction to AtlasBrain
+  // Signal chat interaction to AtlasBrain. Depend on the stable callback,
+  // not the atlasBrain object — that's rebuilt every brain tick, and
+  // signalChat() itself triggers a re-render (setState loop otherwise).
+  const signalChat = atlasBrain?.signalChat;
   useEffect(() => {
-    if (chatOpen && atlasBrain) {
-      atlasBrain.signalChat();
+    if (chatOpen && signalChat) {
+      signalChat();
     }
-  }, [chatOpen, atlasBrain]);
+  }, [chatOpen, signalChat]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -101,6 +108,7 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   // Restore per-agent transcript; greet on first open of each agent
   useEffect(() => {
     if (!chatOpen) return;
+    transcriptAgentRef.current = activeAgent.id;
     const stored = sessionStorage.getItem(`portal-chat-${activeAgent.id}`);
     if (stored) {
       try {
@@ -122,6 +130,7 @@ export default function ChatPanel({ atlasBrain }: ChatPanelProps) {
   // Persist transcript per agent
   useEffect(() => {
     if (messages.length === 0) return;
+    if (transcriptAgentRef.current !== activeAgent.id) return;
     try {
       sessionStorage.setItem(`portal-chat-${activeAgent.id}`, JSON.stringify(messages.slice(-40)));
     } catch { /* storage full — transcript just won't persist */ }
