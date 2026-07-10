@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Signal } from '@/app/lib/behavior/types';
+import { error as logError } from '@/app/lib/logger';
 
 export async function POST(req: Request) {
   try {
@@ -29,8 +30,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, processed: validSignals.length }, { status: 200 });
 
-  } catch (error) {
-    console.error('Error processing signals:', error);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    await logError('signals-route', 'Error processing signals', {
+      route: '/api/agent/signals',
+      details: { error: errorMsg }
+    });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
