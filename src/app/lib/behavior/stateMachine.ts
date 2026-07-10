@@ -139,8 +139,7 @@ export class StateMachine {
 
   public evaluateTransitions(state: BehaviorDirectorState, signal: Signal): AgentPresenceState | null {
     const applicableRules = this.rules
-      .filter(r => r.from === state.presence)
-      .filter(r => r.guards.every(g => g.check(state, signal)))
+      .filter(r => r.from === state.presence && r.guards.every(g => g.check(state, signal)))
       .sort((a, b) => b.priority - a.priority);
 
     for (const rule of applicableRules) {
