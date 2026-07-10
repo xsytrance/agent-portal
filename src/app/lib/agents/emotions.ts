@@ -36,21 +36,23 @@ Example: [mischievous] ohhh you found the eye? bold move.`;
 }
 
 const BRACKET_RE = /^\s*\[([a-z]+)\]\s*/i;
+const STRAY_TAG_RE = new RegExp(`\\s*\\[(?:${EMOTIONS.join('|')})\\]\\s*`, 'gi');
 
 /**
  * Paranoid parse of an emotion-tagged reply (never throws).
  * Unknown or missing emotions fall back to 'neutral' and the text
- * is returned untouched minus the bracket prefix.
+ * is returned untouched minus the bracket prefix. Enthusiastic models
+ * sometimes emote mid-reply too — stray tags are scrubbed from the body.
  */
 export function parseEmotionReply(raw: string): { emotion: AgentEmotion; text: string } {
   const match = raw.match(BRACKET_RE);
   if (match) {
     const candidate = match[1].toLowerCase() as AgentEmotion;
-    const text = raw.slice(match[0].length).trim();
+    const text = raw.slice(match[0].length).replace(STRAY_TAG_RE, ' ').trim();
     if ((EMOTIONS as readonly string[]).includes(candidate) && text) {
       return { emotion: candidate, text };
     }
     if (text) return { emotion: 'neutral', text };
   }
-  return { emotion: 'neutral', text: raw.trim() };
+  return { emotion: 'neutral', text: raw.replace(STRAY_TAG_RE, ' ').trim() };
 }

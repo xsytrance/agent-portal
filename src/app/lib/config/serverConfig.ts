@@ -14,6 +14,23 @@ export async function getAdminPassword(): Promise<string | undefined> {
   return process.env.ADMIN_PASSWORD;
 }
 
+export type LlmProviderChoice = 'openrouter' | 'ollama' | 'mock' | 'auto';
+
+/** Which brain to use. 'auto' (default): OpenRouter if keyed, else Ollama if reachable, else mock. */
+export async function getLlmProviderChoice(): Promise<LlmProviderChoice> {
+  const v = process.env.LLM_PROVIDER as LlmProviderChoice | undefined;
+  if (v && ['openrouter', 'ollama', 'mock', 'auto'].includes(v)) return v;
+  return 'auto';
+}
+
+export async function getOllamaHost(): Promise<string> {
+  return process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+}
+
+export async function getOllamaModel(): Promise<string> {
+  return process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+}
+
 export async function getAppEnv(): Promise<'development' | 'production'> {
   return (process.env.NODE_ENV as 'development' | 'production') || 'development';
 }

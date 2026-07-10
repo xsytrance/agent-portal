@@ -38,7 +38,12 @@ cp .env.local.example .env.local   # optional — runs fine with zero config
 npm run dev                        # http://localhost:3000
 ```
 
-With no env vars you get **demo mode**: full presence, canned in-character replies. Add an `OPENROUTER_API_KEY` and the agents genuinely think.
+With no env vars you get **demo mode**: full presence, canned in-character replies. To give the agents a real brain, pick a provider (`LLM_PROVIDER=auto` tries them in this order):
+
+- **Ollama (local-first, free, private):** run [Ollama](https://ollama.com) and set `OLLAMA_MODEL` to a pulled model (e.g. `qwen2.5:14b`). Replies use an assistant-prefill trick so even small local models emit the `[emotion]` tag reliably.
+- **OpenRouter (cloud):** set `OPENROUTER_API_KEY` (+ optional `OPENROUTER_MODEL`).
+
+To reach the portal from other machines (LAN or Tailscale), bind wide and pick an uncommon port: `npm run dev -- --hostname 0.0.0.0 --port 41777`.
 
 Try it:
 - **Click the eye** — it startles (then opens the chat).

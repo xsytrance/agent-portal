@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getOpenRouterKey, getOpenRouterModel } from '@/app/lib/config/serverConfig';
-import { MockProvider, getProvider, registerProvider } from '@/app/lib/providers/providerAdapter';
-import { OpenRouterProvider } from '@/app/lib/providers/openRouterProvider';
+import { MockProvider, registerProvider } from '@/app/lib/providers/providerAdapter';
+import { selectRealProvider } from '@/app/lib/providers/selectProvider';
 import { agents } from '@/app/lib/agents/starterAgents';
 import { emotionProtocol, parseEmotionReply } from '@/app/lib/agents/emotions';
 import { checkBudget, recordUsage } from '@/app/lib/budget/sessionBudget';
@@ -9,19 +8,6 @@ import { info, error } from '@/app/lib/logger';
 
 const mockProvider = new MockProvider();
 registerProvider(mockProvider);
-
-async function ensureOpenRouterProvider(): Promise<void> {
-  const key = await getOpenRouterKey();
-  if (key && key.startsWith('sk-or-') && !getProvider('openrouter')) {
-    registerProvider(new OpenRouterProvider(
-      {
-        providerId: 'openrouter', providerName: 'OpenRouter',
-        baseUrl: 'https://openrouter.ai/api/v1', model: await getOpenRouterModel(),
-        keyRef: 'OPENROUTER_API_KEY', enabled: true,
-      }, key
-    ));
-  }
-}
 
 function buildSystemPrompt(agentId: string): { prompt: string; temperature: number } {
   const agent = agents.find(a => a.id === agentId);
@@ -71,52 +57,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `message too long (max ${MAX_MESSAGE_CHARS} chars)`, mock: false }, { status: 400 });
   }
 
-  await ensureOpenRouterProvider();
-
   const budget = checkBudget(sessionId);
-  const key = await getOpenRouterKey();
-  const hasRealProvider = !!key && key.startsWith('sk-or-');
+  const provider = await selectRealProvider();
 
   // Graceful degradation: critical/exhausted sessions never reach the LLM.
-  if (!hasRealProvider || !budget.allowLlm) {
-    return mockReply(message, agentId, budget, hasRealProvider ? `budget ${budget.status}` : 'no API key');
+  if (!provider || !budget.allowLlm) {
+    return mockReply(message, agentId, budget, provider ? `budget ${budget.status}` : 'no LLM configured/reachable');
   }
 
   try {
-    const orProvider = getProvider('openrouter');
-    if (orProvider) {
-      const history = (body.history || [])
-        .filter((m): m is { role: string; content: string } => typeof m?.content === 'string')
-        .slice(-MAX_HISTORY_TURNS * 2)
-        .map(m => ({
-          role: m.role === 'user' ? 'user' as const : 'assistant' as const,
-          content: m.content.slice(0, MAX_MESSAGE_CHARS),
-        }));
+    const history = (body.history || [])
+      .filter((m): m is { role: string; content: string } => typeof m?.content === 'string')
+      .slice(-MAX_HISTORY_TURNS * 2)
+      .map(m => ({
+        role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+        content: m.content.slice(0, MAX_MESSAGE_CHARS),
+      }));
 
-      const { prompt, temperature } = buildSystemPrompt(agentId);
-      const result = await orProvider.chat({
-        message, agentId, history,
-        systemPrompt: prompt,
-        maxTokens: budget.maxTokens,
-        temperature,
-      });
+    const { prompt, temperature } = buildSystemPrompt(agentId);
+    const result = await provider.chat({
+      message, agentId, history,
+      systemPrompt: prompt,
+      maxTokens: budget.maxTokens,
+      temperature,
+    });
 
-      const spent = (result.usage?.prompt ?? 0) + (result.usage?.completion ?? 0);
-      const entry = recordUsage(sessionId, spent || budget.maxTokens); // no usage data → assume worst case
-      const { emotion, text } = parseEmotionReply(result.content);
+    const spent = (result.usage?.prompt ?? 0) + (result.usage?.completion ?? 0);
+    const entry = recordUsage(sessionId, spent || budget.maxTokens); // no usage data → assume worst case
+    const { emotion, text } = parseEmotionReply(result.content);
 
-      return NextResponse.json({
-        response: text,
-        emotion,
-        model: result.model,
-        usage: result.usage,
-        mock: false,
-        budget: { status: entry.status, tokensUsed: entry.tokensUsed, totalBudget: entry.totalBudget },
-      });
-    }
+    return NextResponse.json({
+      response: text,
+      emotion,
+      model: result.model,
+      usage: result.usage,
+      mock: false,
+      budget: { status: entry.status, tokensUsed: entry.tokensUsed, totalBudget: entry.totalBudget },
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown error';
-    await error('chat-route', `OpenRouter failed, falling back to mock: ${errMsg}`, { route: '/api/agent/chat', details: { agentId } });
+    await error('chat-route', `${provider.providerId} failed, falling back to mock: ${errMsg}`, { route: '/api/agent/chat', details: { agentId } });
   }
 
   return mockReply(message, agentId, budget, 'provider fallback');
