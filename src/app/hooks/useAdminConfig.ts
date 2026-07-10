@@ -337,7 +337,7 @@ export function useAdminConfig() {
   }, []);
 
 
-  const updateConfig = useCallback((section: string, updates: Record<string, any>) => {
+  const updateConfig = useCallback(<K extends keyof AdminConfig>(section: K, updates: Partial<NonNullable<AdminConfig[K]>>) => {
     setConfig((prev) => {
       const targetSection = prev[section as keyof AdminConfig] || {};
       return {
