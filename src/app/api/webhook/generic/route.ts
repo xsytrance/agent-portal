@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { normalizeWebhookPayload } from '@/app/lib/webhook/normalizer';
+import { error as logError } from '@/app/lib/logger';
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, processed: true, signalId: signal.id }, { status: 200 });
 
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    logError('GenericWebhook', 'Error processing webhook', { details: { error: String(error) } });
     return NextResponse.json({ error: 'Internal server error processing webhook' }, { status: 500 });
   }
 }
