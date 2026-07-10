@@ -216,7 +216,7 @@ export interface BudgetAlert {
   totalBudget: number;
   usagePercent: number;
   estimatedCostUsd: number;
-  triggeredAt: string;
+  triggeredAt: number;
   acknowledgedAt?: string;
   acknowledgedBy?: string;
   channels: AlertChannel[];
