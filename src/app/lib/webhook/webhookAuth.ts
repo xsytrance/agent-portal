@@ -61,13 +61,18 @@ export const sourceRegistry = new Map<WebhookSourceId, WebhookSourceConfig>([
 // Constant-time string comparison function to replace node:crypto/timingSafeEqual
 // Edge runtime compatibility
 function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
+  let expected = b;
   let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+
+  if (a.length !== b.length) {
+    expected = a;
+    result = 1;
   }
+
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+
   return result === 0;
 }
 
@@ -98,8 +103,7 @@ export async function authenticateWebhook(
   if (!config) return { authenticated: false, error: 'Unknown source' };
   if (!config.enabled) return { authenticated: false, error: 'Source disabled' };
 
-  // For testing convenience
-  const secret = process.env[config.auth.secretEnvVar] || (process.env.NODE_ENV === 'test' ? 'test_secret' : undefined);
+  const secret = process.env[config.auth.secretEnvVar];
 
   if (!secret) return { authenticated: false, error: 'Webhook secret not configured' };
 
