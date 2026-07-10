@@ -1,4 +1,4 @@
-type EventCallback = (payload: any) => void;
+type EventCallback = (payload: unknown) => void;
 
 class AgentEventBus {
   private static instance: AgentEventBus;
@@ -33,7 +33,7 @@ class AgentEventBus {
     }
   }
 
-  public publish(eventType: string, payload: any): void {
+  public publish(eventType: string, payload: unknown): void {
     if (this.listeners.has(eventType)) {
       this.listeners.get(eventType)!.forEach((callback) => {
         try {
