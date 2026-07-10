@@ -35,12 +35,12 @@ function ThemeSync({ children }: { children: React.ReactNode }) {
 /** Wire agent switching into AtlasBrain */
 function AgentBrainSync({ brain }: { brain: ReturnType<typeof useAtlasBrain> }) {
   const { activeAgent } = useAgent();
+  const { signalAgentSwitch } = brain;
 
   useEffect(() => {
     // Notify brain whenever the active agent changes
-    brain.signalAgentSwitch(activeAgent.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAgent.id]);
+    signalAgentSwitch(activeAgent.id);
+  }, [activeAgent.id, signalAgentSwitch]);
 
   return null;
 }
