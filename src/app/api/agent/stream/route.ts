@@ -7,7 +7,42 @@ const EVENT_MS = 5000;
 const MAX_EVENTS = 20;
 const MAX_DURATION_MS = 5 * 60 * 1000;
 
-export async function GET() {
+function secureCompare(a: string, b: string): boolean {
+  let expectedStr = b;
+  let result = 0;
+
+  if (a.length !== b.length) {
+    expectedStr = a;
+    result = 1;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ expectedStr.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const authHeader = request.headers.get('authorization') || (url.searchParams.get('token') ? `Basic ${url.searchParams.get('token')}` : '');
+  const expectedPassword = process.env.ADMIN_PASSWORD;
+
+  if (!expectedPassword) {
+    return new NextResponse('Unauthorized', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Agent Portal Stream"' },
+    });
+  }
+
+  const expectedAuth = 'Basic ' + Buffer.from(`admin:${expectedPassword}`).toString('base64');
+
+  if (!authHeader || !secureCompare(authHeader, expectedAuth)) {
+    return new NextResponse('Unauthorized', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Agent Portal Stream"' },
+    });
+  }
+
   await info('sse', 'New client connected', { route: '/api/agent/stream' });
   const encoder = new TextEncoder();
   const clientId = Math.random().toString(36).substring(2, 10);
