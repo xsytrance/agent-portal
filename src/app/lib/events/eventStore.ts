@@ -19,11 +19,9 @@ let lastPrunedAt = new Date().toISOString();
 
 function prune(): void {
   const now = Date.now();
+  const cutoffISO = new Date(now - MAX_AGE_MS).toISOString();
   const beforeCount = events.length;
-  events = events.filter(e => {
-    const eventTime = new Date(e.timestamp).getTime();
-    return now - eventTime < MAX_AGE_MS;
-  });
+  events = events.filter(e => e.timestamp >= cutoffISO);
   if (events.length > MAX_SIZE) events = events.slice(-PRUNE_TARGET);
   if (events.length < beforeCount) {
     lastPrunedAt = new Date().toISOString();
