@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agent Portal
 
-## Getting Started
+**An AI agent that lives on your webpage.** Not a chatbot widget in the corner — a *presence*: a floating eye that tracks your cursor, blinks, breathes, and thinks; a particle field that shifts with its mood; and a cast of agents who speak only when speaking is worth it.
 
-First, run the development server:
+> Presence is not constant talking. Presence is behavior. Silence is a first-class feature.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## The cast
+
+| Agent | Vibe |
+|-------|------|
+| **Professor Nova** 🟠 | Energetic inventor-scientist. Treats the page like a lab. |
+| **Jinx** 🩷 | Chaotic trickster. The fourth wall is a polite suggestion. |
+| **Atlas** 🔵 | Serene companion. Never wastes a word. |
+| **Chatty** 🦜 | Chaotic-goofy parrot, immigrated from the sayhai desktop companion. Squawks. Secretly affectionate. |
+
+## How it works
+
+```
+you type → /api/agent/chat → OpenRouter (persona prompt + emotion protocol)
+                ↓ reply: "[excited] ohhh bold question."
+        emotion parsed server-side
+                ↓
+     EMOTION signal → AtlasBrain (client state machine, 500ms tick)
+                ↓
+   the eye dilates, the particles stir — the page reacts to WHAT was said
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **AtlasBrain** — client-side behavior engine: OBSERVING / RESTING / THINKING / REACTING modes, attention economy with inertia, idle detection, breathing rhythm, partial attention, rare events, and a slowly drifting **temperament** (chipper, mellow, chaotic, broody, lovey, dramatic, sleepy, sassy — ported from sayhai's mood drift) that tints everything.
+- **Emotion protocol** (from sayhai) — every LLM reply leads with `[emotion]`, so the presence layer knows the mood the instant the reply lands. Works in demo mode too.
+- **Token budget** — per-session ledger with graceful degradation: healthy → full replies, warning → shorter replies, critical/exhausted → free canned quips. The page never dies, it just gets quieter.
+- **Webhooks → presence** — authenticated external events (`POST /api/webhook/generic` with `x-webhook-secret`) land in the event store; the page polls the public feed, the eye glances up, and the message surfaces as a speech bubble. Your CI can literally make the page look up from what it's doing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run it
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+cp .env.local.example .env.local   # optional — runs fine with zero config
+npm run dev                        # http://localhost:3000
+```
 
-## Learn More
+With no env vars you get **demo mode**: full presence, canned in-character replies. Add an `OPENROUTER_API_KEY` and the agents genuinely think.
 
-To learn more about Next.js, take a look at the following resources:
+Try it:
+- **Click the eye** — it startles (then opens the chat).
+- **Press `/`** — chat opens. **Esc** closes.
+- **Go idle ~5s** — the eye rests, half-lidded; particles slow down.
+- Make the outside world knock:
+  ```bash
+  curl -X POST localhost:3000/api/webhook/generic \
+    -H 'content-type: application/json' -H 'x-webhook-secret: <your secret>' \
+    -d '{"eventType":"deploy","source":"ci","urgency":0.9,"data":{"message":"Deploy finished!"}}'
+  ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Admin
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Set `ADMIN_PASSWORD` and open `/admin` (basic auth, timing-safe) — panels for API keys, presence tuning, budget controls, feature flags, prompts, and logs.
 
-## Deploy on Vercel
+## Development
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx eslint src      # lint
+npx tsc --noEmit    # typecheck
+npm run build       # production build
+bun test            # unit tests (bun)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+CI runs all four on every push/PR.
+
+## Architecture docs
+
+The full design lives in [`docs/`](docs/) — a Phase 2 master plan and six sub-documents (behavior director, attention economy, token budget, event systems, admin safety, UX presence) totalling ~15k lines. The code implements the Moderate Presence Layer (Option B) plus the Phase 3 webhook integration.
