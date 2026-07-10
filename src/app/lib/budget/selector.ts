@@ -1,7 +1,14 @@
-import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision, BudgetTier } from './types';
+import { TokenBudget, BudgetConfig, RuntimeMode, ProviderDecision } from './types';
 import { EVENT_TIER_REGISTRY, classifyEvent } from './costTiers';
 import { resolveFallback, FALLBACK_CHAIN } from './degradation';
 import { estimateCost } from './utils';
+import { AgentBudgetAllocation } from './types';
+
+// Cache to map config object references to a fast lookup map for agent budgets.
+// This avoids O(N) array lookups per event when checking per-agent budgets.
+
+const configAgentBudgetCache = new WeakMap<BudgetConfig, Map<string, AgentBudgetAllocation>>();
+
 
 // Helper mock to replace complex real cache checking for now
 function hasValidCacheEntry(eventType: string): boolean {
@@ -12,7 +19,6 @@ function hasValidCacheEntry(eventType: string): boolean {
 function wouldExceedRateLimit(budget: TokenBudget, config: BudgetConfig): boolean {
     return false;
 }
-
 export function selectProvider(
   eventType: string,
   budget: TokenBudget,
@@ -143,17 +149,31 @@ export function selectProvider(
 
     // Rule 11: Per-agent budget check
     if (config.features.enablePerAgentBudgets) {
-      const agentBudget = config.agentBudgets.find(a => a.agentId === budget.agentSpending[0]?.agentId);
-      if (agentBudget && agentBudget.maxTokensPerSession > 0) {
-        const agentSpent = budget.agentSpending.find(a => a.agentId === agentBudget.agentId)?.tokensUsed || 0;
-        if (agentSpent >= agentBudget.maxTokensPerSession) {
-          return {
-            provider: 'template',
-            reason: `Agent "\${agentBudget.agentId}" budget exceeded -- template fallback`,
-            tier,
-            estimatedTokens: 0,
-            estimatedCost: 0,
-          };
+      const currentAgent = budget.agentSpending[0];
+      if (currentAgent) {
+        let agentBudgetMap = configAgentBudgetCache.get(config);
+        if (!agentBudgetMap) {
+          agentBudgetMap = new Map();
+          for (let i = 0, len = config.agentBudgets.length; i < len; i++) {
+            const b = config.agentBudgets[i];
+            agentBudgetMap.set(b.agentId, b);
+          }
+          configAgentBudgetCache.set(config, agentBudgetMap);
+        }
+
+        const agentBudget = agentBudgetMap.get(currentAgent.agentId);
+
+        if (agentBudget && agentBudget.maxTokensPerSession > 0) {
+          const agentSpent = currentAgent.tokensUsed || 0;
+          if (agentSpent >= agentBudget.maxTokensPerSession) {
+            return {
+              provider: 'template',
+              reason: `Agent "${agentBudget.agentId}" budget exceeded -- template fallback`,
+              tier,
+              estimatedTokens: 0,
+              estimatedCost: 0,
+            };
+          }
         }
       }
     }
